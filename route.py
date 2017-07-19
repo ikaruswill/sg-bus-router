@@ -70,7 +70,7 @@ def dijkstra(df, start, end):
 
                 # Not in traversal queue yet
                 if not next_code in cost_cache:
-                    next_node = (next_code, new_cost, (node[0], service, node[2]))
+                    next_node = (next_code, new_cost, (service, node[0], node[2]))
                     heapq.heappush(traversal_queue, next_node)
                     cost_cache[next_code] = new_cost
                 # Already in traversal queue
@@ -89,7 +89,7 @@ def dijkstra(df, start, end):
                             heapq.heappush(traversal_queue, popped_node)
 
                         # Replace node
-                        next_node = (next_code, new_cost, (node[0], service, node[2]))
+                        next_node = (next_code, new_cost, (service, node[0], node[2]))
                         heapq.heappush(traversal_queue, next_node)
                         cost_cache[next_code] = new_cost
             visited_codes.add(current_code)

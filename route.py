@@ -5,114 +5,77 @@ from functools import total_ordering
 import pandas as pd
 from sqlalchemy import create_engine
 
+db_conn = create_engine('sqlite:///sg-bus-routes.db')
+df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
+
+def dijkstra(df, start, end):
+    # Initialization step
+    visited_codes = set()
+    origin = (start, 0, ())
+    traversal_queue = []
+    distance_cache = {start: 0}
+    heapq.heappush(traversal_queue, origin)
+
+    # Dijkstra iterations
+    while len(traversal_queue):
+        node = heapq.heappop(traversal_queue)
+        code, distance, path = node
+        stop = df[(df.BusStopCode == code)]
+
+        if code == end:
+            return node
+
+        print('Current:', node)
+
+        next_service_stops = []
+        # Discover next stop of each service
+        for row in stop.itertuples():
+            # Use iloc[0] as df returns series as it does not know the
+            # number of rows returned
+            next_service_stops.append(df[
+                (df.ServiceNo == row.ServiceNo) & \
+                (df.Direction == row.Direction) & \
+                (df.StopSequence == row.StopSequence + 1)].iloc[0])
+
+        for next_service_stop in next_service_stops:
+            service = next_service_stop.ServiceNo
+            stop_distance = stop[(stop.ServiceNo == service)].iloc[0].Distance
+            next_code = next_service_stop.BusStopCode
+            next_stop_distance = next_service_stop.Distance - stop_distance
+            new_distance = next_stop_distance + distance
+
+            print('Next:', next_code)
+
+            # Not in traversal queue yet
+            if not next_code in distance_cache:
+                print('Not in queue')
+                next_node = (next_code, new_distance, (node[0], service, node[2]))
+                heapq.heappush(traversal_queue, next_node)
+                distance_cache[next_code] = new_distance
+            # Already in traversal queue
+            else:
+                print('Already in queue')
+                if new_distance < distance_cache[next_code]:
+                    # Get existing node
+                    popped = []
+                    while len(traversal_queue):
+                        next_node = heapq.heappop(traversal_queue)
+                        if next_node[0] == next_code:
+                            break
+                        popped.append(next_node)
+
+                    # Return popped to queue
+                    for popped_node in popped:
+                        heapq.heappush(traversal_queue, popped_node)
+
+                    # Replace node
+                    next_node = (next_code, new_distance, (node[0], service, node[2]))
+                    heapq.heappush(traversal_queue, next_node)
+                    distance_cache[next_code] = new_distance
+        visited_codes.add(code)
+    return False
 
 start = '19051'
 end = '18129'
 
-db_conn = create_engine('sqlite:///sg-bus-routes.db')
-df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
-
-# def discover_edges(node, visited, unvisited):
-#     bus_route = df[(df.ServiceNo == node.ServiceNo) & (df.Direction == node.Direction) & (df.StopSequence > df.StopSequence)]
-#     for point in bus_route:
-#
-#         bus_services = df[df.BusStopCode == point.BusStopCode]
-#         for
-
-@total_ordering
-class Node:
-    def __lt__(self, node):
-        if self.distance < node.distance:
-            return True
-    def __init__(self, bus_stop_code, distance=math.inf):
-        self.bus_stop_code = bus_stop_code
-        self.distance = distance
-
-def dijkstra(df, start):
-    # Initialization step
-    visited = set()
-    unvisited = heapq([Node(start, 0)])
-    unvisited_cache = set(unvisited)
-    while True:
-        if not len(unvisited):
-            break
-        current_node = unvisited.popleft()
-        edges = df[(df.BusStopCode == start)]
-        for edge in edges:
-            next_bus_stop = df[(df.ServiceNo == edge.ServiceNo) & \
-                               (df.Direction == edge.Direction) & \
-                               (df.StopSequence == edge.StopSequence + 1)]
-            if not next_bus_stop.BusStopCode in unvisited_cache:
-                current_bus_stop = df[df.BusStopCode == current_node.bus_stop_code]
-                next_node = Node(
-                    next_bus_stop.BusStopCode,
-                    next_bus_stop.Distance - current_bus_stop.Distance)
-                unvisited.append(next_node)
-                unvisited_cache.add(next_bus_stop)
-
-
-
-
-
-for service in initial_services:
-    discover_edges(service)
-
-    service_no = service.ServiceNo
-    solution_route = [
-        {
-            'service': service_no,
-            'start': current_bus_stop,
-            'end': None,
-            'route': df[(df.ServiceNo == service_no) & (df.Direction == service.Direction)]
-        }
-    ]
-    traversal_queue.append(solution_route)
-
-
-
-
-
-# Traversal needs:
-# Route
-# StopSequence
-# Traversal Queue
-# Service Cache
-#
-#
-
-def generate_new_solution_routes(service, traversal_queue):
-
-
-def traverse(route, stop_sequence, world, traversal_queue, service_cache):
-    bus_stop = route[route.StopSequence == stop_sequence].BusStopCode
-    services_available = world[world.BusStopCode == bus_stop]
-    for service in services_available:
-        service_no = service.ServiceNo
-        if service_no not in service_cache:
-            generate_new_solution_routes(service, traversal_queue)
-
-
-for service in initial_services:
-    service_no = service.ServiceNo
-    next_bus_stop = df[(df.serviceNo == service_no) & (df.Direction == service.Direction) & (df.StopSequence == service.StopSequence + 1)]
-
-
-
-def depth_first_search(traversal_queue):
-
-
-def depth_first_search(start, service_no):
-    transfer_cache = set([service_no])
-    direction = int(df[(df.BusStopCode == start) & (df.ServiceNo == service_no)].Direction)
-    route = df[(df.ServiceNo == service_no) & (df.Direction == direction)]
-    for stop in route.itertuples():
-        buses_available = df[df.BusStopCode == stop.BusStopCode]
-        for bus in buses_available:
-            if bus.ServiceNo not in transfer_cache:
-
-
-
-
-for pending_route in routes_available.itertuples():
-    if not exists_in_cache(pending_route.ServiceNo):
-        route = deque()
+print(dijkstra(df, start, end))

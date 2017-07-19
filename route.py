@@ -60,6 +60,12 @@ def dijkstra(df, start, end):
                 next_code = next_service_stop.BusStopCode
                 new_cost = calculate_cost(current_cost, node[2][1], service_stop, next_service_stop)
 
+                if new_cost < 0:
+                    print('NEGATIVE EDGE WEIGHT!')
+                    print(service_stop)
+                    print(next_service_stop)
+                    exit()
+
                 print('Next:', next_code)
 
                 # Not in traversal queue yet

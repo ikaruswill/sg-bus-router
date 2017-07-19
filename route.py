@@ -56,7 +56,7 @@ def dijkstra(df, start, end):
 
             for next_service_stop in next_service_stops:
                 service = next_service_stop.ServiceNo
-                service_stop = stop[(stop.ServiceNo == service)].iloc[0]
+                service_stop = stop[(stop.ServiceNo == service) & (stop.Direction == next_service_stop.Direction)].iloc[0]
                 next_code = next_service_stop.BusStopCode
                 new_cost = calculate_cost(current_cost, node[2][1], service_stop, next_service_stop)
 

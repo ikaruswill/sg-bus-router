@@ -37,7 +37,20 @@ def replace_node(code, new_node, queue):
     # Add new node
     heapq.heappush(queue, new_node)
 
+def discover_next_service_stops(current_stop_services):
+    next_service_stops = []
+    # Discover next stop of each service
+    for row in current_stop_services.itertuples():
+        # Use iloc[0] as df returns series as it does not know the
+        # number of rows returned
+        query = df[
+            (df.ServiceNo == row.ServiceNo) & \
+            (df.Direction == row.Direction) & \
+            (df.StopSequence == row.StopSequence + 1)]
 
+        if len(query):
+            next_service_stops.append(query.iloc[0])
+    return next_service_stops
 
 def dijkstra(df, start, end):
     routes = []
@@ -66,18 +79,7 @@ def dijkstra(df, start, end):
 
         print('Current:', current_node)
 
-        next_service_stops = []
-        # Discover next stop of each service
-        for row in stop.itertuples():
-            # Use iloc[0] as df returns series as it does not know the
-            # number of rows returned
-            query = df[
-                (df.ServiceNo == row.ServiceNo) & \
-                (df.Direction == row.Direction) & \
-                (df.StopSequence == row.StopSequence + 1)]
-
-            if len(query):
-                next_service_stops.append(query.iloc[0])
+        next_service_stops = discover_next_service_stops(stop)
 
         for next_service_stop in next_service_stops:
             service = next_service_stop.ServiceNo

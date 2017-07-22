@@ -11,6 +11,7 @@ df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 def calculate_cost(curr_cost, curr_svc, curr_svc_stop, next_svc_stop):
     cost = next_svc_stop.Distance - curr_svc_stop.Distance + curr_cost
     if next_svc_stop.ServiceNo != curr_svc:
+        # Distance in km equivalent to the time & effort a transfer requires
         cost += 5
     #     print('TRANSFER!')
     #     print(curr_svc, next_svc_stop.ServiceNo, cost)
@@ -21,11 +22,18 @@ def calculate_cost(curr_cost, curr_svc, curr_svc_stop, next_svc_stop):
 
 def dijkstra(df, start, end):
     routes = []
+    # TODO: Add all origin bus services into queue instead of running 3 rounds of dijkstra
     # Try all origin bus services
     for origin_row in df[(df.BusStopCode == start)].itertuples():
         # Initialization step
+        # A node is (
+        #     BusStopCode,
+        #     cost_from_origin,
+        #     route=(bus_service_from_prev_node,
+        #            prev_bus_stop_code,
+        #            prev_route))
         origin = (start, 0, (None, origin_row.ServiceNo, None))
-        visited_codes = set()
+        # visited_codes = set()
         traversal_queue = []
         cost_cache = {start: 0}
         heapq.heappush(traversal_queue, origin)
@@ -76,6 +84,7 @@ def dijkstra(df, start, end):
                 # Already in traversal queue
                 else:
                     if new_cost < cost_cache[next_code]:
+                        # TODO: Use deletion marking and object maps to speed up this O(n) process
                         # Get existing node
                         popped = []
                         while len(traversal_queue):
@@ -92,7 +101,12 @@ def dijkstra(df, start, end):
                         next_node = (next_code, new_cost, (service, node[0], node[2]))
                         heapq.heappush(traversal_queue, next_node)
                         cost_cache[next_code] = new_cost
-            visited_codes.add(current_code)
+                    elif new_cost == old_cost:
+                        # Add node into queue
+                        next_node = (next_code, new_cost, (service, node[0], node[2]))
+                        heapq.heappush(traversal_queue, next_node)
+
+            # visited_codes.add(current_code)
 
         routes.append(node)
     # Return best route

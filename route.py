@@ -8,6 +8,23 @@ from sqlalchemy import create_engine
 db_conn = create_engine('sqlite:///sg-bus-routes.db')
 df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 
+class Node:
+    def __init__(self, code, cost, service, route=[]):
+        self.code = code
+        self.cost = cost
+        self.service = service # Dataframe
+        self.route = route # List of edges
+
+    def __lt__(self, other):
+        return self.cost < other.cost
+
+
+class Edge:
+    def __init__(self, src, dest):
+        self.src = src
+        self.dest = dest
+
+
 def calculate_cost(curr_cost, curr_svc, curr_svc_stop, next_svc_stop):
     cost = next_svc_stop.Distance - curr_svc_stop.Distance + curr_cost
     if next_svc_stop.ServiceNo != curr_svc:

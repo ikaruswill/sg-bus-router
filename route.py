@@ -56,23 +56,6 @@ class Edge:
         return '({} -- {} -- {})'.format(self.source, self.service.ServiceNo, self.dest)
 
 
-# TODO: Use deletion marking and object maps to speed up this O(n) process
-def replace_node(code, new_node, queue):
-    # Get existing node
-    popped = []
-    while len(queue):
-        node = heapq.heappop(queue)
-        if node.bus_stop_code == code:
-            break
-        popped.append(node)
-
-    # Return popped to queue
-    for popped_node in popped:
-        heapq.heappush(queue, popped_node)
-
-    # Add new node
-    heapq.heappush(queue, new_node)
-
 def discover_next_service_stops(node):
     next_service_stops = []
     # Discover next stop of each service
@@ -136,7 +119,9 @@ def dijkstra(start, end):
 
 def main():
     start = '19051'
-    end = '18111'
+    end = '18129'
+    # 18111 no transfers
+    # 18129 single transfer
 
     print(dijkstra(start, end))
 

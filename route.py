@@ -5,10 +5,16 @@ from functools import total_ordering
 import pandas as pd
 from sqlalchemy import create_engine
 
+# TODO: Add stops/km as cost metric variable for time estimation
+# As highways have less stops/km, even if otherwise, time is wasted per stop
+# TODO: Heuristic function using GPS distance to prune strayed subtrees
+# TODO: Allow for multiple destination nodes
+# TODO: Allow for multiple route suggestions without re-running algorithm
+
 db_conn = create_engine('sqlite:///sg-bus-routes.db')
 df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 
-TRANSFER_PENALTY = 2
+TRANSFER_PENALTY = 1
 
 @total_ordering
 class Node:

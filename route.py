@@ -8,10 +8,11 @@ from sqlalchemy import create_engine
 db_conn = create_engine('sqlite:///sg-bus-routes.db')
 df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 
+TRANSFER_PENALTY = 2
+
 @total_ordering
 class Node:
     def __init__(self, bus_stop_code, service, best_cost=math.inf, best_route=[]):
-        global df
         self.bus_stop_code = bus_stop_code
         self.best_cost = best_cost
         self.best_route = best_route
@@ -44,7 +45,7 @@ class Edge:
         cost = self.dest.service.Distance - prev_service_stop.Distance
         if self.service.ServiceNo != self.source.service.ServiceNo:
             # Distance in km equivalent to the time & effort a transfer requires
-            cost += 5
+            cost += TRANSFER_PENALTY
 
         return cost
 
@@ -77,7 +78,6 @@ def discover_next_service_stops(node):
     return next_service_stops
 
 def dijkstra(start, end):
-    global df
     traversal_queue = []
     nodes = {}
     optimal_nodes = set()

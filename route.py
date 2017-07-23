@@ -8,34 +8,38 @@ from sqlalchemy import create_engine
 db_conn = create_engine('sqlite:///sg-bus-routes.db')
 df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 
+@total_ordering
 class Node:
-    def __init__(self, code, cost, service, route=[]):
-        self.code = code
-        self.cost = cost
-        self.service = service # Dataframe
-        self.route = route # List of edges
+    def __init__(self, bus_stop_code, best_cost=math.inf, best_route=[]):
+        global df
+        self.bus_stop_code = bus_stop_code
+        self.best_cost = best_cost
+        self.best_route = best_route
+        self.services = df[(df.BusStopCode == self.bus_stop_code)]
 
     def __lt__(self, other):
         return self.cost < other.cost
 
+    def __hash__(self):
+        return hash(self.code)
+
 
 class Edge:
-    def __init__(self, src, dest):
-        self.src = src
+    def __init__(self, source, dest, service):
+        self.source = source
         self.dest = dest
+        self.service = service # Service taken at source
+        self.cost = calculate_cost()
 
-
-def calculate_cost(curr_cost, curr_svc, curr_svc_stop, next_svc_stop):
-    cost = next_svc_stop.Distance - curr_svc_stop.Distance + curr_cost
-    if next_svc_stop.ServiceNo != curr_svc:
-        # Distance in km equivalent to the time & effort a transfer requires
-        cost += 5
-    #     print('TRANSFER!')
-    #     print(curr_svc, next_svc_stop.ServiceNo, cost)
-    # else:
-    #     print('NO TRANSFER')
-    #     print(curr_svc, next_svc_stop.ServiceNo, cost)
-    return cost
+    def calculate_cost(self):
+        prev_edge = self.source.best_route[-1]
+        next_service_stop = dest.services[
+            dest.services.ServiceNo == self.service.ServiceNo]
+        cost = next_service_stop.Distance - service.Distance
+        if self.service.ServiceNo != prev_edge.service.ServiceNo:
+            # Distance in km equivalent to the time & effort a transfer requires
+            cost += 5
+        return cost
 
 # TODO: Use deletion marking and object maps to speed up this O(n) process
 def replace_node(code, new_node, queue):

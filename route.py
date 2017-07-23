@@ -29,7 +29,8 @@ class Edge:
         self.source = source
         self.dest = dest
         self.service = service # Service taken at source
-        self.cost = calculate_cost()
+        self.cost = self.calculate_cost()
+        self.update_dest_cost_route()
 
     def calculate_cost(self):
         prev_edge = self.source.best_route[-1]
@@ -40,6 +41,13 @@ class Edge:
             # Distance in km equivalent to the time & effort a transfer requires
             cost += 5
         return cost
+
+    def update_dest_cost_route(self):
+        new_cost = self.source.best_cost + self.cost
+        if new_cost < self.dest.best_cost:
+            self.dest.best_cost = new_cost
+            self.dest.best_route = self.source.route + self
+
 
 # TODO: Use deletion marking and object maps to speed up this O(n) process
 def replace_node(code, new_node, queue):

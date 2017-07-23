@@ -10,41 +10,41 @@ df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 
 @total_ordering
 class Node:
-    def __init__(self, bus_stop_code, best_cost=math.inf, best_route=[]):
+    def __init__(self, bus_stop_code, service, best_cost=math.inf, best_route=[]):
         global df
         self.bus_stop_code = bus_stop_code
         self.best_cost = best_cost
         self.best_route = best_route
+        self.service = service # Service stop
         self.services = df[(df.BusStopCode == self.bus_stop_code)]
 
     def __lt__(self, other):
         return self.best_cost < other.best_cost
 
     def __hash__(self):
-        return hash(self.code)
+        return hash('{} {}'.format(self.code, self.service))
 
     def __repr__(self):
-        return '{}: {}'.format(self.bus_stop_code, self.best_cost)
+        return '{} ({}): {:.1f}'.format(
+            self.bus_stop_code, self.service.ServiceNo, self.best_cost)
 
 
 class Edge:
-    def __init__(self, source, dest, service):
+    def __init__(self, source, dest):
         self.source = source
         self.dest = dest
-        self.service = service # Service taken at source
         self.cost = self.calculate_cost()
         self.update_dest_cost_route()
 
     def calculate_cost(self):
-        next_service_stop = self.dest.services[
-            (self.dest.services.ServiceNo == self.service.ServiceNo) & \
-            (self.dest.services.StopSequence == self.service.StopSequence + 1)].iloc[0]
-        cost = next_service_stop.Distance - self.service.Distance
-        if self.source.best_route:
-            prev_optim_edge = self.source.best_route[-1]
-            if self.service.ServiceNo != prev_optim_edge.service.ServiceNo:
-                # Distance in km equivalent to the time & effort a transfer requires
-                cost += 5
+        prev_service_stop = self.source.services[
+            (self.source.services.ServiceNo == self.dest.service.ServiceNo) & \
+            (self.source.services.StopSequence == self.dest.service.StopSequence - 1)].iloc[0]
+        cost = self.dest.service.Distance - prev_service_stop.Distance
+        if self.dest.service.ServiceNo != self.source.service.ServiceNo:
+            # Distance in km equivalent to the time & effort a transfer requires
+            cost += 5
+
         return cost
 
     def update_dest_cost_route(self):
@@ -54,9 +54,9 @@ class Edge:
             self.dest.best_route = self.source.best_route + [self]
 
     def __repr__(self):
-        return '({} -- {} -- {})'.format(
-            self.source.bus_stop_code, self.service.ServiceNo,
-            self.dest.bus_stop_code)
+        return '<{} ({}) --> {} ({}): {:.1f}>'.format(
+            self.source.bus_stop_code, self.source.service.ServiceNo,
+            self.dest.bus_stop_code, self.dest.service.ServiceNo, self.cost)
 
 
 def discover_next_service_stops(node):
@@ -80,14 +80,18 @@ def dijkstra(start, end):
     nodes = {}
     optimal_nodes = set()
 
-    origin = Node(start, 0)
-    heapq.heappush(traversal_queue, origin)
+    origin_services = df[(df.BusStopCode == start)]
+    for origin_service in origin_services.itertuples():
+        origin = Node(start, origin_service, 0)
+        heapq.heappush(traversal_queue, origin)
 
     # Dijkstra iterations
     while len(traversal_queue):
         current_node = heapq.heappop(traversal_queue)
-        nodes[current_node.bus_stop_code] = current_node
+        nodes[(current_node.bus_stop_code, current_node.service.ServiceNo)] = current_node
         optimal_nodes.add(current_node.bus_stop_code)
+
+        print(current_node)
 
         if current_node.bus_stop_code == end:
             print('BEST ROUTE:', current_node.best_route)
@@ -98,26 +102,25 @@ def dijkstra(start, end):
         # Create next nodes
         for next_service_stop in next_service_stops:
             next_bus_stop_code = next_service_stop.BusStopCode
+            next_service_no = next_service_stop.ServiceNo
             # Already optimal, ignore
             if next_bus_stop_code in optimal_nodes:
                 continue
 
             # Check if node already exists
-            if next_bus_stop_code in nodes:
-                next_node = nodes[next_bus_stop_code]
+            if (next_bus_stop_code, next_service_no) in nodes:
+                next_node = nodes[(next_bus_stop_code, next_service_no)]
             else:
-                next_node = Node(next_bus_stop_code)
-                nodes[next_bus_stop_code] = next_node
+                next_node = Node(next_bus_stop_code, next_service_stop)
+                nodes[(next_bus_stop_code, next_service_no)] = next_node
                 traversal_queue.append(next_node)
 
-            print(next_node)
+            print('++', next_node)
 
             # Create edge and relax
-            current_service_stop = current_node.services[
-                current_node.services.ServiceNo == next_service_stop.ServiceNo].iloc[0]
-            edge = Edge(current_node, next_node, current_service_stop)
+            edge = Edge(current_node, next_node)
 
-            print(edge)
+            print('++', edge)
 
             # Maintain heap property in event node best cost has changed
             heapq.heapify(traversal_queue)

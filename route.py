@@ -18,10 +18,13 @@ class Node:
         self.services = df[(df.BusStopCode == self.bus_stop_code)]
 
     def __lt__(self, other):
-        return self.cost < other.cost
+        return self.best_cost < other.best_cost
 
     def __hash__(self):
         return hash(self.code)
+
+    def __repr__(self):
+        return str(self.bus_stop_code)
 
 
 class Edge:
@@ -33,20 +36,24 @@ class Edge:
         self.update_dest_cost_route()
 
     def calculate_cost(self):
-        prev_edge = self.source.best_route[-1]
-        next_service_stop = dest.services[
-            dest.services.ServiceNo == self.service.ServiceNo]
-        cost = next_service_stop.Distance - service.Distance
-        if self.service.ServiceNo != prev_edge.service.ServiceNo:
-            # Distance in km equivalent to the time & effort a transfer requires
-            cost += 5
+        next_service_stop = self.dest.services[
+            self.dest.services.ServiceNo == self.service.ServiceNo].iloc[0]
+        cost = next_service_stop.Distance - self.service.Distance
+        if self.source.best_route:
+            prev_edge = self.source.best_route[-1]
+            if self.service.ServiceNo != prev_edge.service.ServiceNo:
+                # Distance in km equivalent to the time & effort a transfer requires
+                cost += 5
         return cost
 
     def update_dest_cost_route(self):
         new_cost = self.source.best_cost + self.cost
         if new_cost < self.dest.best_cost:
             self.dest.best_cost = new_cost
-            self.dest.best_route = self.source.route + self
+            self.dest.best_route = self.source.best_route + [self]
+
+    def __repr__(self):
+        return '({} -- {} -- {})'.format(self.source, self.service.ServiceNo, self.dest)
 
 
 # TODO: Use deletion marking and object maps to speed up this O(n) process
@@ -55,7 +62,7 @@ def replace_node(code, new_node, queue):
     popped = []
     while len(queue):
         node = heapq.heappop(queue)
-        if node[0] == code:
+        if node.bus_stop_code == code:
             break
         popped.append(node)
 
@@ -66,10 +73,10 @@ def replace_node(code, new_node, queue):
     # Add new node
     heapq.heappush(queue, new_node)
 
-def discover_next_service_stops(current_stop_services):
+def discover_next_service_stops(node):
     next_service_stops = []
     # Discover next stop of each service
-    for row in current_stop_services.itertuples():
+    for row in node.services.itertuples():
         # Use iloc[0] as df returns series as it does not know the
         # number of rows returned
         query = df[
@@ -81,80 +88,57 @@ def discover_next_service_stops(current_stop_services):
             next_service_stops.append(query.iloc[0])
     return next_service_stops
 
-def dijkstra(df, start, end):
-    routes = []
-    # Try all origin bus services
-    for origin_row in df[(df.BusStopCode == start)].itertuples():
-        # Initialization step
-        # A node is (
-        #     BusStopCode,
-        #     cost_from_origin,
-        #     route=(bus_service_from_prev_node,
-        #            prev_bus_stop_code,
-        #            prev_route))
-        origin = (start, 0, (None, origin_row.ServiceNo, None))
-        traversal_queue = []
-        cost_cache = {start: 0}
-        heapq.heappush(traversal_queue, origin)
+def dijkstra(start, end):
+    global df
+    traversal_queue = []
+    nodes = {}
+    optimal_nodes = set()
+
+    origin = Node(start, 0)
+    heapq.heappush(traversal_queue, origin)
 
     # Dijkstra iterations
     while len(traversal_queue):
         current_node = heapq.heappop(traversal_queue)
-        current_code, current_cost, _ = current_node
-        stop = df[(df.BusStopCode == current_code)]
+        nodes[current_node.bus_stop_code] = current_node
+        optimal_nodes.add(current_node.bus_stop_code)
 
-        if current_code == end:
-            break
+        if current_node.bus_stop_code == end:
+            print('BEST ROUTE:', current_node.best_route)
+            return current_node
 
-        print('Current:', current_node)
+        next_service_stops = discover_next_service_stops(current_node)
 
-        next_service_stops = discover_next_service_stops(stop)
-
+        # Create next nodes
         for next_service_stop in next_service_stops:
-            service = next_service_stop.ServiceNo
-            service_stop = stop[(stop.ServiceNo == service) & (stop.Direction == next_service_stop.Direction)].iloc[0]
-            next_code = next_service_stop.BusStopCode
-            new_cost = calculate_cost(current_cost, current_node[2][1], service_stop, next_service_stop)
+            next_bus_stop_code = next_service_stop.BusStopCode
+            # Already optimal, ignore
+            if next_bus_stop_code in optimal_nodes:
+                continue
 
-            if new_cost < 0:
-                print('NEGATIVE EDGE WEIGHT!')
-                print(service_stop)
-                print(next_service_stop)
-                exit()
-
-            print('Next:', next_code)
-            # TODO: Use visited_codes to check for lowest cost path and use
-            # Not in traversal queue yet
-            if not next_code in cost_cache:
-                next_node = (next_code, new_cost, (service, current_node[0], current_node[2]))
-                heapq.heappush(traversal_queue, next_node)
-                cost_cache[next_code] = new_cost
-            # Already in traversal queue
+            # Check if node already exists
+            if next_bus_stop_code in nodes:
+                next_node = nodes[next_bus_stop_code]
             else:
-                if new_cost < cost_cache[next_code]:
-                    # Replace node
-                    next_node = (next_code, new_cost, (service, current_node[0], current_node[2]))
-                    cost_cache[next_code] = new_cost
-                    replace_node(next_code, next_node, traversal_queue)
-                # elif new_cost == cost_cache[next_code]:
-                #     # Add node into queue
-                #     next_node = (next_code, new_cost, (service, current_node[0], current_node[2]))
-                #     heapq.heappush(traversal_queue, next_node)
+                next_node = Node(next_bus_stop_code)
+                nodes[next_bus_stop_code] = next_node
+                traversal_queue.append(next_node)
 
-            # visited_codes.add(current_code)
+            print(next_node)
 
-        routes.append(current_node)
-    # Return best route
-    min_dist = math.inf
-    min_route = None
-    for route in routes:
-        if route[1] < min_dist:
-            min_dist = route[1]
-            min_route = route
+            # Create edge and relax
+            edge = Edge(current_node, next_node, next_service_stop)
 
-    return min_route
+            print(edge)
 
-start = '19059'
-end = '18129'
+            # Maintain heap property in event node best cost has changed
+            heapq.heapify(traversal_queue)
 
-print(dijkstra(df, start, end))
+def main():
+    start = '19051'
+    end = '18111'
+
+    print(dijkstra(start, end))
+
+if __name__ == '__main__':
+    main()

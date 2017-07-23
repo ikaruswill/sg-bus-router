@@ -24,7 +24,7 @@ class Node:
         return hash(self.code)
 
     def __repr__(self):
-        return str(self.bus_stop_code)
+        return '{}: {}'.format(self.bus_stop_code, self.best_cost)
 
 
 class Edge:
@@ -37,11 +37,12 @@ class Edge:
 
     def calculate_cost(self):
         next_service_stop = self.dest.services[
-            self.dest.services.ServiceNo == self.service.ServiceNo].iloc[0]
+            (self.dest.services.ServiceNo == self.service.ServiceNo) & \
+            (self.dest.services.StopSequence == self.service.StopSequence + 1)].iloc[0]
         cost = next_service_stop.Distance - self.service.Distance
         if self.source.best_route:
-            prev_edge = self.source.best_route[-1]
-            if self.service.ServiceNo != prev_edge.service.ServiceNo:
+            prev_optim_edge = self.source.best_route[-1]
+            if self.service.ServiceNo != prev_optim_edge.service.ServiceNo:
                 # Distance in km equivalent to the time & effort a transfer requires
                 cost += 5
         return cost
@@ -53,7 +54,9 @@ class Edge:
             self.dest.best_route = self.source.best_route + [self]
 
     def __repr__(self):
-        return '({} -- {} -- {})'.format(self.source, self.service.ServiceNo, self.dest)
+        return '({} -- {} -- {})'.format(
+            self.source.bus_stop_code, self.service.ServiceNo,
+            self.dest.bus_stop_code)
 
 
 def discover_next_service_stops(node):
@@ -110,7 +113,9 @@ def dijkstra(start, end):
             print(next_node)
 
             # Create edge and relax
-            edge = Edge(current_node, next_node, next_service_stop)
+            current_service_stop = current_node.services[
+                current_node.services.ServiceNo == next_service_stop.ServiceNo].iloc[0]
+            edge = Edge(current_node, next_node, current_service_stop)
 
             print(edge)
 

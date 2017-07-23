@@ -30,18 +30,19 @@ class Node:
 
 
 class Edge:
-    def __init__(self, source, dest):
+    def __init__(self, source, service, dest):
         self.source = source
+        self.service = service
         self.dest = dest
         self.cost = self.calculate_cost()
         self.update_dest_cost_route()
 
     def calculate_cost(self):
         prev_service_stop = self.source.services[
-            (self.source.services.ServiceNo == self.dest.service.ServiceNo) & \
-            (self.source.services.StopSequence == self.dest.service.StopSequence - 1)].iloc[0]
+            (self.source.services.ServiceNo == self.service.ServiceNo) & \
+            (self.source.services.StopSequence == self.service.StopSequence - 1)].iloc[0]
         cost = self.dest.service.Distance - prev_service_stop.Distance
-        if self.dest.service.ServiceNo != self.source.service.ServiceNo:
+        if self.service.ServiceNo != self.source.service.ServiceNo:
             # Distance in km equivalent to the time & effort a transfer requires
             cost += 5
 
@@ -51,6 +52,7 @@ class Edge:
         new_cost = self.source.best_cost + self.cost
         if new_cost < self.dest.best_cost:
             self.dest.best_cost = new_cost
+            self.dest.service = self.service
             self.dest.best_route = self.source.best_route + [self]
 
     def __repr__(self):
@@ -118,7 +120,7 @@ def dijkstra(start, end):
             print('++', next_node)
 
             # Create edge and relax
-            edge = Edge(current_node, next_node)
+            edge = Edge(current_node, next_service_stop, next_node)
 
             print('++', edge)
 
@@ -127,9 +129,10 @@ def dijkstra(start, end):
 
 def main():
     start = '19051'
-    end = '18129'
+    end = '03381'
     # 18111 no transfers
     # 18129 single transfer
+    # 03381 goal
 
     print(dijkstra(start, end))
 

@@ -10,6 +10,7 @@ from sqlalchemy import create_engine
 # TODO: Heuristic function using GPS distance to prune strayed subtrees
 # TODO: Allow for multiple destination nodes
 # TODO: Allow for multiple route suggestions without re-running algorithm
+# TODO: Add custom exceptions instead of exit()
 
 db_conn = create_engine('sqlite:///sg-bus-routes.db')
 df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
@@ -53,6 +54,12 @@ class Edge:
         if self.service.ServiceNo != self.source.service.ServiceNo:
             # Distance in km equivalent to the time & effort a transfer requires
             cost += TRANSFER_PENALTY
+
+        if cost < 0:
+            print('NEGATIVE EDGE')
+            exit('<{} ({}) --> {} ({}): {:.1f}>'.format(
+                self.source.bus_stop_code, self.source.service.ServiceNo,
+                self.dest.bus_stop_code, self.dest.service.ServiceNo, cost))
 
         return cost
 
@@ -131,6 +138,7 @@ def dijkstra(start, end):
 
             print('++', edge)
 
+            # TODO: Could do with a little optimization
             # Maintain heap property in event node best cost has changed
             heapq.heapify(traversal_queue)
 

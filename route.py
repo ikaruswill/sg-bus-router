@@ -41,8 +41,9 @@ class Edge:
     def calculate_cost(self):
         prev_service_stop = self.source.services[
             (self.source.services.ServiceNo == self.service.ServiceNo) & \
+            (self.source.services.Direction == self.service.Direction) & \
             (self.source.services.StopSequence == self.service.StopSequence - 1)].iloc[0]
-        cost = self.dest.service.Distance - prev_service_stop.Distance
+        cost = self.service.Distance - prev_service_stop.Distance
         if self.service.ServiceNo != self.source.service.ServiceNo:
             # Distance in km equivalent to the time & effort a transfer requires
             cost += TRANSFER_PENALTY

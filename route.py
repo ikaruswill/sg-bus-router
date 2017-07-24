@@ -1,11 +1,11 @@
 import math
 import heapq
 from functools import total_ordering
+from pprint import pprint
 
 import pandas as pd
 from sqlalchemy import create_engine
 
-# TODO: Add stops/km as cost metric variable for time estimation as highways have less stops/km, even if otherwise, time is wasted per stop
 # TODO: Allow multiple solutions per destination. Currently takes the first optimal service stop as solution and ignores equally good routes
 # TODO: Heuristic function using GPS distance to prune strayed subtrees
 # TODO: Allow for multiple route suggestions without re-running algorithm
@@ -18,8 +18,10 @@ TRANSFER_PENALTY = 1
 
 @total_ordering
 class Node:
-    def __init__(self, bus_stop_code, service, best_cost=math.inf, best_route=[]):
+    def __init__(self, bus_stop_code, service, best_cost=math.inf,
+                 best_dist=math.inf, best_route=[]):
         self.bus_stop_code = bus_stop_code
+        self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_route = best_route
         self.service = service # Service stop
@@ -32,8 +34,9 @@ class Node:
         return hash('{} {}'.format(self.bus_stop_code, self.service))
 
     def __repr__(self):
-        return '{} ({}): {:.1f}'.format(
-            self.bus_stop_code, self.service.ServiceNo, self.best_cost)
+        return '{} ({}): {:.1f} | {:.1f}km'.format(
+            self.bus_stop_code, self.service.ServiceNo, self.best_cost,
+            self.best_dist)
 
 
 class Edge:
@@ -41,38 +44,45 @@ class Edge:
         self.source = source
         self.service = service
         self.dest = dest
+        self.distance = self.calculate_dist()
         self.cost = self.calculate_cost()
-        self.update_dest_cost_route()
+        self.update_dest_distance_cost_route()
 
-    def calculate_cost(self):
+    def calculate_dist(self):
         prev_service_stop = self.source.services[
             (self.source.services.ServiceNo == self.service.ServiceNo) & \
             (self.source.services.Direction == self.service.Direction) & \
             (self.source.services.StopSequence == self.service.StopSequence - 1)].iloc[0]
-        cost = self.service.Distance - prev_service_stop.Distance
+        return self.service.Distance - prev_service_stop.Distance
+
+    def calculate_cost(self):
+        cost = self.distance
         if self.service.ServiceNo != self.source.service.ServiceNo:
             # Distance in km equivalent to the time & effort a transfer requires
             cost += TRANSFER_PENALTY
 
         if cost < 0:
             print('NEGATIVE EDGE')
-            exit('<{} ({}) --> {} ({}): {:.1f}>'.format(
-                self.source.bus_stop_code, self.source.service.ServiceNo,
-                self.dest.bus_stop_code, self.dest.service.ServiceNo, cost))
+            self.cost = cost
+            exit(repr(self))
 
         return cost
 
-    def update_dest_cost_route(self):
-        new_cost = self.source.best_cost + self.cost
+    def update_dest_distance_cost_route(self):
+        new_dist = self.source.best_dist + self.distance
+        stops_per_km = new_dist/(len(self.source.best_route) + 1)
+        new_cost = self.source.best_cost + self.cost + stops_per_km
         if new_cost < self.dest.best_cost:
             self.dest.best_cost = new_cost
+            self.dest.best_dist = new_dist
             self.dest.service = self.service
             self.dest.best_route = self.source.best_route + [self]
 
     def __repr__(self):
-        return '<{} ({}) --> {} ({}): {:.1f}>'.format(
+        return '< {} ({}) --> {} ({}): {:.1f} | {:.1f}km >'.format(
             self.source.bus_stop_code, self.source.service.ServiceNo,
-            self.dest.bus_stop_code, self.dest.service.ServiceNo, self.cost)
+            self.dest.bus_stop_code, self.dest.service.ServiceNo, self.cost,
+            self.distance)
 
 
 def discover_next_service_stops(node):
@@ -99,7 +109,7 @@ def dijkstra(source, dests):
 
     origin_services = df[(df.BusStopCode == source)]
     for origin_service in origin_services.itertuples():
-        origin = Node(source, origin_service, 0)
+        origin = Node(source, origin_service, 0, 0)
         heapq.heappush(traversal_queue, origin)
 
     # Dijkstra iterations
@@ -158,7 +168,7 @@ def main():
     solutions = dijkstra(source, dests)
     for solution in solutions:
         print(solution)
-        print(solution.best_route)
+        pprint(solution.best_route)
 
 if __name__ == '__main__':
     main()

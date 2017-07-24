@@ -5,10 +5,9 @@ from functools import total_ordering
 import pandas as pd
 from sqlalchemy import create_engine
 
-# TODO: Add stops/km as cost metric variable for time estimation
-# As highways have less stops/km, even if otherwise, time is wasted per stop
+# TODO: Add stops/km as cost metric variable for time estimation as highways have less stops/km, even if otherwise, time is wasted per stop
+# TODO: Allow multiple solutions per destination. Currently takes the first optimal service stop as solution and ignores equally good routes
 # TODO: Heuristic function using GPS distance to prune strayed subtrees
-# TODO: Allow for multiple destination nodes
 # TODO: Allow for multiple route suggestions without re-running algorithm
 # TODO: Add custom exceptions instead of exit()
 
@@ -30,7 +29,7 @@ class Node:
         return self.best_cost < other.best_cost
 
     def __hash__(self):
-        return hash('{} {}'.format(self.code, self.service))
+        return hash('{} {}'.format(self.bus_stop_code, self.service))
 
     def __repr__(self):
         return '{} ({}): {:.1f}'.format(
@@ -91,27 +90,30 @@ def discover_next_service_stops(node):
             next_service_stops.append(query.iloc[0])
     return next_service_stops
 
-def dijkstra(start, end):
+def dijkstra(source, dests):
     traversal_queue = []
     nodes = {}
     optimal_nodes = set()
+    dests = set(dests)
+    soln_nodes = []
 
-    origin_services = df[(df.BusStopCode == start)]
+    origin_services = df[(df.BusStopCode == source)]
     for origin_service in origin_services.itertuples():
-        origin = Node(start, origin_service, 0)
+        origin = Node(source, origin_service, 0)
         heapq.heappush(traversal_queue, origin)
 
     # Dijkstra iterations
-    while len(traversal_queue):
+    while len(dests):
         current_node = heapq.heappop(traversal_queue)
         nodes[(current_node.bus_stop_code, current_node.service.ServiceNo)] = current_node
         optimal_nodes.add(current_node.bus_stop_code)
 
         print(current_node)
 
-        if current_node.bus_stop_code == end:
-            print('BEST ROUTE:', current_node.best_route)
-            return current_node
+        # Store optimal route found for bus stop (Service agnostic)
+        if current_node.bus_stop_code in dests:
+            dests.remove(current_node.bus_stop_code)
+            soln_nodes.append(current_node)
 
         next_service_stops = discover_next_service_stops(current_node)
 
@@ -136,20 +138,27 @@ def dijkstra(start, end):
             # Create edge and relax
             edge = Edge(current_node, next_service_stop, next_node)
 
-            print('++', edge)
+            print(' -', edge)
 
-            # TODO: Could do with a little optimization
+            # TODO: Could do with a little optimization, currently O(hn)
+            # h = len(heapq), n = len(df)
             # Maintain heap property in event node best cost has changed
             heapq.heapify(traversal_queue)
 
-def main():
-    start = '19051'
-    end = '03381'
-    # 18111 no transfers
-    # 18129 single transfer
-    # 03381 goal
+    return soln_nodes
 
-    print(dijkstra(start, end))
+def main():
+    source = '59039'
+    dests = ['54589']
+    # No transfers      : 19051 -> 18111
+    # Single transfer   : 19051 -> 18129
+    # Goal              : 19051 -> 03381
+    # Equally optimal   : 59039 -> 54589
+
+    solutions = dijkstra(source, dests)
+    for solution in solutions:
+        print(solution)
+        print(solution.best_route)
 
 if __name__ == '__main__':
     main()

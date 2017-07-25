@@ -1,12 +1,13 @@
-import math
-import heapq
+from argparse import ArgumentParser
 from functools import total_ordering
-from pprint import pprint
+import heapq
+import math
 
 import pandas as pd
 from sqlalchemy import create_engine
 
 # TODO: Allow multiple solutions per destination. Currently takes the first optimal service stop as solution and ignores equally good routes
+# TODO: Allow multiple source nodes
 # TODO: Heuristic function using GPS distance to prune strayed subtrees
 # TODO: Allow for multiple route suggestions without re-running algorithm
 # TODO: Add custom exceptions instead of exit()
@@ -158,8 +159,30 @@ def dijkstra(source, dests):
     return soln_nodes
 
 def main():
-    source = '59039'
-    dests = ['54589']
+    global TRANSFER_PENALTY
+    parser = ArgumentParser(
+        description='Finds the shortest bus route between a source and multiple '
+        'destination bus stops.')
+    parser.add_argument(
+        '-t', '--transfer-penalty', default=TRANSFER_PENALTY,
+        help="distance in km equivalent to the time & effort a transfer requires")
+    parser.add_argument('-s', '--source', help="source bus stop code")
+    parser.add_argument(
+        '-d', '--dests', nargs='*',
+        help="space-delimited acceptable destination bus stop codes")
+
+    args = parser.parse_args()
+    TRANSFER_PENALTY = args.transfer_penalty
+    source = getattr(args, 'source', None)
+    dests = getattr(args, 'dests', None)
+    if not source:
+        source = input('Source bus stop code: ')
+    if not dests:
+        dests = input('Space-delimited destination bus-stop codes: ')
+        dests = [dest.strip() for dest in dests.split(',')]
+
+    # source = '59039'
+    # dests = ['54589']
     # No transfers      : 19051 -> 18111
     # Single transfer   : 19051 -> 18129
     # Goal              : 19051 -> 03381

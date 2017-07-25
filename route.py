@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from functools import total_ordering
 import heapq
 import math
+from pprint import pprint
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -111,7 +112,7 @@ def dijkstra(source, dests):
     origin_services = df[(df.BusStopCode == source)]
     for origin_service in origin_services.itertuples():
         origin = Node(source, origin_service, 0, 0)
-        heapq.heappush(traversal_queue, origin)
+        traversal_queue.append(origin)
 
     # Dijkstra iterations
     while len(dests):
@@ -151,10 +152,10 @@ def dijkstra(source, dests):
 
             print(' -', edge)
 
-            # TODO: Could do with a little optimization, currently O(hn)
-            # h = len(heapq), n = len(df)
-            # Maintain heap property in event node best cost has changed
-            heapq.heapify(traversal_queue)
+        # TODO: Could do with a little optimization, currently O(hn)
+        # h = len(heapq), n = len(df)
+        # Maintain heap property in event node best cost has changed
+        heapq.heapify(traversal_queue)
 
     return soln_nodes
 

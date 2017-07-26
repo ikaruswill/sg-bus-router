@@ -39,7 +39,7 @@ class Node:
         return hash('{} {}'.format(self.bus_stop_code, self.service))
 
     def __repr__(self):
-        return '{} ({}): {:.1f} | {:.1f} | {:.1f}km'.format(
+        return '{} ({:>4}): {:>6.1f} | {:>6.1f} | {:>6.1f}km'.format(
             self.bus_stop_code, self.service.ServiceNo, self.best_cost,
             self.best_h_dist, self.best_dist)
 
@@ -174,12 +174,12 @@ def dijkstra(origin_code, goal_codes):
                 nodes[(next_bus_stop_code, next_service_no)] = next_node
                 traversal_queue.append(next_node)
 
-            print('++', next_node)
+            # print('++', next_node)
 
             # Create edge and relax
             edge = Edge(current_node, next_service_stop, next_node)
 
-            print(' -', edge)
+            # print(' -', edge)
 
         # Store optimal route found for bus stop (Service agnostic)
         if current_node.bus_stop_code in goal_nodes:
@@ -202,8 +202,8 @@ def main():
     # Equally optimal   : 59039 -> 54589
     # Loops             : 11389 -> 11381
 
-    DEBUG_ORIGIN = '59039'
-    DEBUG_GOAL = ['54589']
+    DEBUG_ORIGIN = '19051'
+    DEBUG_GOAL = ['18129']
 
     # Argument handling
     parser = ArgumentParser(

@@ -21,10 +21,12 @@ TRANSFER_PENALTY = 1
 
 @total_ordering
 class Node:
+    goals = []
+
     def __init__(self, bus_stop_code, service, best_cost=inf,
                  best_dist=inf, best_route=[]):
         self.bus_stop_code = bus_stop_code
-        self.bus_stop = bs[bs.BusStopCode == node.bus_stop_code].iloc[0]
+        self.bus_stop = bs[bs.BusStopCode == self.bus_stop_code].iloc[0]
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_route = best_route
@@ -119,20 +121,30 @@ def discover_next_service_stops(node):
             next_service_stops.append(query.iloc[0])
     return next_service_stops
 
-def dijkstra(source, dests):
+def dijkstra(origin_code, goal_codes):
     traversal_queue = []
     nodes = {}
     optimal_nodes = set()
-    dests = set(dests)
+    goal_codes = set(goal_codes)
     soln_nodes = []
 
-    origin_services = rt[(rt.BusStopCode == source)]
+    # Initialize goal nodes
+    goal_nodes = []
+    for goal_code in goal_codes:
+        goal_services = rt[(rt.BusStopCode == goal_code)]
+        for goal_service in goal_services.itertuples():
+            goal = Node(goal_code, goal_service)
+            goal_nodes.append(goal)
+    Node.goals = goal_nodes
+
+    # Initialize origin node
+    origin_services = rt[(rt.BusStopCode == origin_code)]
     for origin_service in origin_services.itertuples():
-        origin = Node(source, origin_service, 0, 0)
+        origin = Node(origin_code, origin_service, 0, 0)
         traversal_queue.append(origin)
 
     # Dijkstra iterations
-    while len(dests):
+    while len(goal_codes):
         current_node = heapq.heappop(traversal_queue)
         nodes[(current_node.bus_stop_code, current_node.service.ServiceNo)] = current_node
         optimal_nodes.add(current_node.bus_stop_code)
@@ -140,8 +152,8 @@ def dijkstra(source, dests):
         print(current_node)
 
         # Store optimal route found for bus stop (Service agnostic)
-        if current_node.bus_stop_code in dests:
-            dests.remove(current_node.bus_stop_code)
+        if current_node.bus_stop_code in goal_codes:
+            goal_codes.remove(current_node.bus_stop_code)
             soln_nodes.append(current_node)
 
         next_service_stops = discover_next_service_stops(current_node)
@@ -185,8 +197,8 @@ def main():
     # Equally optimal   : 59039 -> 54589
     # Loops             : 11389 -> 11381
 
-    DEBUG_SOURCE = '19051'
-    DEBUG_DEST = ['18129']
+    DEBUG_ORIGIN = '19051'
+    DEBUG_GOAL = ['18129']
 
     # Argument handling
     parser = ArgumentParser(
@@ -195,27 +207,27 @@ def main():
     parser.add_argument(
         '-t', '--transfer-penalty', default=TRANSFER_PENALTY,
         help="distance in km equivalent to the time & effort a transfer requires")
-    parser.add_argument('-s', '--source', help="source bus stop code",
-                        default=DEBUG_SOURCE)
+    parser.add_argument('-o', '--origin', help="origin bus stop code",
+                        default=DEBUG_ORIGIN)
     parser.add_argument(
-        '-d', '--dests', nargs='*',
+        '-g', '--goals', nargs='*',
         help="space-delimited acceptable destination bus stop codes",
-        default=DEBUG_DEST)
+        default=DEBUG_GOAL)
 
     args = parser.parse_args()
     TRANSFER_PENALTY = args.transfer_penalty
-    source = args.source
-    dests = args.dests
+    origin = args.origin
+    goals = args.goals
 
     # Fallback prompts
-    if not source:
-        source = input('Source bus stop code: ')
-    if not dests:
-        dests = input('Space-delimited destination bus-stop codes: ')
-        dests = [dest.strip() for dest in dests.split(',')]
+    if not origin:
+        origin = input('Source bus stop code: ')
+    if not goals:
+        goals = input('Space-delimited destination bus-stop codes: ')
+        goals = [dest.strip() for dest in goals.split(',')]
 
     # Run algorithm
-    solutions = dijkstra(source, dests)
+    solutions = dijkstra(origin, goals)
     for solution in solutions:
         print(solution)
         pprint(solution.best_route)

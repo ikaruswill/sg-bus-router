@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from functools import total_ordering
 import heapq
-import math
+from math import radians, cos, sin, asin, sqrt, inf
 from pprint import pprint
 
 import pandas as pd
@@ -14,20 +14,22 @@ from sqlalchemy import create_engine
 # TODO: Add custom exceptions instead of exit()
 
 db_conn = create_engine('sqlite:///sg-bus-router.db')
-df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
+rt = pd.read_sql_table(table_name='bus_routes', con=db_conn)
+bs = pd.read_sql_table(table_name='bus_stops', con=db_conn)
 
 TRANSFER_PENALTY = 1
 
 @total_ordering
 class Node:
-    def __init__(self, bus_stop_code, service, best_cost=math.inf,
-                 best_dist=math.inf, best_route=[]):
+    def __init__(self, bus_stop_code, service, best_cost=inf,
+                 best_dist=inf, best_route=[]):
         self.bus_stop_code = bus_stop_code
+        self.bus_stop = bs[bs.BusStopCode == node.bus_stop_code].iloc[0]
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_route = best_route
         self.service = service # Service stop
-        self.services = df[(df.BusStopCode == self.bus_stop_code)]
+        self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
 
     def __lt__(self, other):
         return self.best_cost < other.best_cost
@@ -87,16 +89,31 @@ class Edge:
             self.distance)
 
 
+def haversine(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    km = 6367 * c
+    return km
+
 def discover_next_service_stops(node):
     next_service_stops = []
     # Discover next stop of each service
     for row in node.services.itertuples():
-        # Use iloc[0] as df returns series as it does not know the
+        # Use iloc[0] as rt returns series as it does not know the
         # number of rows returned
-        query = df[
-            (df.ServiceNo == row.ServiceNo) & \
-            (df.Direction == row.Direction) & \
-            (df.StopSequence == row.StopSequence + 1)]
+        query = rt[
+            (rt.ServiceNo == row.ServiceNo) & \
+            (rt.Direction == row.Direction) & \
+            (rt.StopSequence == row.StopSequence + 1)]
 
         if len(query):
             next_service_stops.append(query.iloc[0])
@@ -109,7 +126,7 @@ def dijkstra(source, dests):
     dests = set(dests)
     soln_nodes = []
 
-    origin_services = df[(df.BusStopCode == source)]
+    origin_services = rt[(rt.BusStopCode == source)]
     for origin_service in origin_services.itertuples():
         origin = Node(source, origin_service, 0, 0)
         traversal_queue.append(origin)
@@ -153,7 +170,7 @@ def dijkstra(source, dests):
             print(' -', edge)
 
         # TODO: Could do with a little optimization, currently O(hn)
-        # h = len(heapq), n = len(df)
+        # h = len(heapq), n = len(rt)
         # Maintain heap property in event node best cost has changed
         heapq.heapify(traversal_queue)
 

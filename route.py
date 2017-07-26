@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 # TODO: Allow for multiple route suggestions without re-running algorithm
 # TODO: Add custom exceptions instead of exit()
 
-db_conn = create_engine('sqlite:///sg-bus-routes.db')
+db_conn = create_engine('sqlite:///sg-bus-router.db')
 df = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 
 TRANSFER_PENALTY = 1
@@ -161,34 +161,43 @@ def dijkstra(source, dests):
 
 def main():
     global TRANSFER_PENALTY
+
+    # No transfers      : 19051 -> 18111
+    # Single transfer   : 19051 -> 18129
+    # Goal              : 19051 -> 03381
+    # Equally optimal   : 59039 -> 54589
+    # Loops             : 11389 -> 11381
+
+    DEBUG_SOURCE = '19051'
+    DEBUG_DEST = ['18129']
+
+    # Argument handling
     parser = ArgumentParser(
         description='Finds the shortest bus route between a source and multiple '
         'destination bus stops.')
     parser.add_argument(
         '-t', '--transfer-penalty', default=TRANSFER_PENALTY,
         help="distance in km equivalent to the time & effort a transfer requires")
-    parser.add_argument('-s', '--source', help="source bus stop code")
+    parser.add_argument('-s', '--source', help="source bus stop code",
+                        default=DEBUG_SOURCE)
     parser.add_argument(
         '-d', '--dests', nargs='*',
-        help="space-delimited acceptable destination bus stop codes")
+        help="space-delimited acceptable destination bus stop codes",
+        default=DEBUG_DEST)
 
     args = parser.parse_args()
     TRANSFER_PENALTY = args.transfer_penalty
-    source = getattr(args, 'source', None)
-    dests = getattr(args, 'dests', None)
+    source = args.source
+    dests = args.dests
+
+    # Fallback prompts
     if not source:
         source = input('Source bus stop code: ')
     if not dests:
         dests = input('Space-delimited destination bus-stop codes: ')
         dests = [dest.strip() for dest in dests.split(',')]
 
-    # source = '59039'
-    # dests = ['54589']
-    # No transfers      : 19051 -> 18111
-    # Single transfer   : 19051 -> 18129
-    # Goal              : 19051 -> 03381
-    # Equally optimal   : 59039 -> 54589
-
+    # Run algorithm
     solutions = dijkstra(source, dests)
     for solution in solutions:
         print(solution)

@@ -9,7 +9,6 @@ from sqlalchemy import create_engine
 
 # TODO: Allow multiple solutions per destination. Currently takes the first optimal service stop as solution and ignores equally good routes
 # TODO: Allow multiple source nodes
-# TODO: Heuristic function using GPS distance to prune strayed subtrees
 # TODO: Allow for multiple route suggestions without re-running algorithm
 # TODO: Add custom exceptions instead of exit()
 
@@ -93,10 +92,9 @@ class Edge:
     def update_dest_distance_cost_route(self):
         new_dist = self.source.best_dist + self.distance
         stops_per_km = new_dist/(len(self.source.best_route) + 1)
-        sld_from_goals = [self.haversine(
+        h_dist = min([self.haversine(
             self.dest.bus_stop.Longitude, self.dest.bus_stop.Latitude,
-            goal.bus_stop.Longitude, goal.bus_stop.Latitude) for goal in self.goals.values()]
-        h_dist = min(sld_from_goals)
+            goal.bus_stop.Longitude, goal.bus_stop.Latitude) for goal in self.goals.values()])
         new_cost = self.source.best_cost + self.cost + stops_per_km + h_dist
         if new_cost < self.dest.best_cost:
             self.dest.best_cost = new_cost
@@ -106,7 +104,7 @@ class Edge:
             self.dest.best_route = self.source.best_route + [self]
 
     def __repr__(self):
-        return '< {} ({}) --> {} ({}): {:.1f} | {:.1f}km >'.format(
+        return '< {} ({:>4}) --> {} ({:>4}) >: {:>4.1f} | {:>4.1f}km'.format(
             self.source.bus_stop_code, self.source.service.ServiceNo,
             self.dest.bus_stop_code, self.dest.service.ServiceNo, self.cost,
             self.distance)
@@ -233,8 +231,8 @@ def main():
 
     # Run algorithm
     solutions = dijkstra(origin, goals)
+    print('Solution')
     for solution in solutions:
-        print(solution)
         pprint(solution.best_route)
 
 if __name__ == '__main__':

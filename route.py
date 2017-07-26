@@ -21,12 +21,11 @@ TRANSFER_PENALTY = 1
 
 @total_ordering
 class Node:
-    goals = []
-
     def __init__(self, bus_stop_code, service, best_cost=inf,
                  best_dist=inf, best_route=[]):
         self.bus_stop_code = bus_stop_code
         self.bus_stop = bs[bs.BusStopCode == self.bus_stop_code].iloc[0]
+        self.best_h_dist = inf
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_route = best_route
@@ -40,12 +39,14 @@ class Node:
         return hash('{} {}'.format(self.bus_stop_code, self.service))
 
     def __repr__(self):
-        return '{} ({}): {:.1f} | {:.1f}km'.format(
+        return '{} ({}): {:.1f} | {:.1f} | {:.1f}km'.format(
             self.bus_stop_code, self.service.ServiceNo, self.best_cost,
-            self.best_dist)
+            self.best_h_dist, self.best_dist)
 
 
 class Edge:
+    goals = {}
+
     def __init__(self, source, service, dest):
         self.source = source
         self.service = service
@@ -60,6 +61,21 @@ class Edge:
             (self.source.services.Direction == self.service.Direction) & \
             (self.source.services.StopSequence == self.service.StopSequence - 1)].iloc[0]
         return self.service.Distance - prev_service_stop.Distance
+
+    def haversine(self, lon1, lat1, lon2, lat2):
+        """
+        Calculate the great circle distance between two points
+        on the earth (specified in decimal degrees)
+        """
+        # convert decimal degrees to radians
+        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+        # haversine formula
+        dlon = lon2 - lon1
+        dlat = lat2 - lat1
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a))
+        km = 6367 * c
+        return km
 
     def calculate_cost(self):
         cost = self.distance
@@ -77,10 +93,15 @@ class Edge:
     def update_dest_distance_cost_route(self):
         new_dist = self.source.best_dist + self.distance
         stops_per_km = new_dist/(len(self.source.best_route) + 1)
-        new_cost = self.source.best_cost + self.cost + stops_per_km
+        sld_from_goals = [self.haversine(
+            self.dest.bus_stop.Longitude, self.dest.bus_stop.Latitude,
+            goal.bus_stop.Longitude, goal.bus_stop.Latitude) for goal in self.goals.values()]
+        h_dist = min(sld_from_goals)
+        new_cost = self.source.best_cost + self.cost + stops_per_km + h_dist
         if new_cost < self.dest.best_cost:
             self.dest.best_cost = new_cost
             self.dest.best_dist = new_dist
+            self.dest.best_h_dist = h_dist
             self.dest.service = self.service
             self.dest.best_route = self.source.best_route + [self]
 
@@ -90,21 +111,6 @@ class Edge:
             self.dest.bus_stop_code, self.dest.service.ServiceNo, self.cost,
             self.distance)
 
-
-def haversine(lon1, lat1, lon2, lat2):
-    """
-    Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees)
-    """
-    # convert decimal degrees to radians
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    # haversine formula
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a))
-    km = 6367 * c
-    return km
 
 def discover_next_service_stops(node):
     next_service_stops = []
@@ -125,17 +131,16 @@ def dijkstra(origin_code, goal_codes):
     traversal_queue = []
     nodes = {}
     optimal_nodes = set()
-    goal_codes = set(goal_codes)
+    goal_nodes = {}
     soln_nodes = []
 
     # Initialize goal nodes
-    goal_nodes = []
     for goal_code in goal_codes:
         goal_services = rt[(rt.BusStopCode == goal_code)]
         for goal_service in goal_services.itertuples():
             goal = Node(goal_code, goal_service)
-            goal_nodes.append(goal)
-    Node.goals = goal_nodes
+            goal_nodes[goal_code] = goal
+    Edge.goals = goal_nodes
 
     # Initialize origin node
     origin_services = rt[(rt.BusStopCode == origin_code)]
@@ -144,17 +149,12 @@ def dijkstra(origin_code, goal_codes):
         traversal_queue.append(origin)
 
     # Dijkstra iterations
-    while len(goal_codes):
+    while len(goal_nodes):
         current_node = heapq.heappop(traversal_queue)
         nodes[(current_node.bus_stop_code, current_node.service.ServiceNo)] = current_node
         optimal_nodes.add(current_node.bus_stop_code)
 
         print(current_node)
-
-        # Store optimal route found for bus stop (Service agnostic)
-        if current_node.bus_stop_code in goal_codes:
-            goal_codes.remove(current_node.bus_stop_code)
-            soln_nodes.append(current_node)
 
         next_service_stops = discover_next_service_stops(current_node)
 
@@ -181,6 +181,11 @@ def dijkstra(origin_code, goal_codes):
 
             print(' -', edge)
 
+        # Store optimal route found for bus stop (Service agnostic)
+        if current_node.bus_stop_code in goal_nodes:
+            goal_nodes.pop(current_node.bus_stop_code)
+            soln_nodes.append(current_node)
+
         # TODO: Could do with a little optimization, currently O(hn)
         # h = len(heapq), n = len(rt)
         # Maintain heap property in event node best cost has changed
@@ -197,8 +202,8 @@ def main():
     # Equally optimal   : 59039 -> 54589
     # Loops             : 11389 -> 11381
 
-    DEBUG_ORIGIN = '19051'
-    DEBUG_GOAL = ['18129']
+    DEBUG_ORIGIN = '59039'
+    DEBUG_GOAL = ['54589']
 
     # Argument handling
     parser = ArgumentParser(

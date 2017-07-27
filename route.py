@@ -24,15 +24,15 @@ class Node:
     goal_stop = None
     heuristics = {}
 
-    def __init__(self, bus_stop_code, service=None, best_cost=inf,
-                 best_dist=inf, best_route=[], service_no=None):
+    def __init__(self, bus_stop_code, service_id=None, best_cost=inf,
+                 best_dist=inf, best_route=[]):
         self.bus_stop_code = bus_stop_code
         self.bus_stop = bs[bs.BusStopCode == self.bus_stop_code].iloc[0]
         self.h_dist = self.calculate_heuristic()
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_route = best_route
-        self.service = service if not service.empty else rt[rt.ServiceNo == service_no]
+        self.service = rt.loc[service_id]
         self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
 
     def haversine(self, lon1, lat1, lon2, lat2):
@@ -64,7 +64,7 @@ class Node:
         return self.best_cost < other.best_cost
 
     def __hash__(self):
-        return hash('{} {}'.format(self.bus_stop_code, self.service))
+        return hash('{} {}'.format(self.bus_stop_code, self.service.ServiceNo))
 
     def __repr__(self):
         return '{} ({:>4}): {:>6.1f} | {:>6.1f} | {:>6.1f}km'.format(
@@ -73,9 +73,9 @@ class Node:
 
 
 class Edge:
-    def __init__(self, source, service, dest):
+    def __init__(self, source, service_id, dest):
         self.source = source
-        self.service = service
+        self.service = rt.loc[service_id]
         self.dest = dest
         self.distance = self.calculate_dist()
         self.cost = self.calculate_cost()
@@ -121,16 +121,13 @@ class Edge:
 def discover_next_service_stops(node):
     next_service_stops = []
     # Discover next stop of each service
-    for row in node.services.itertuples():
+    for idx, row in node.services.iterrows():
         # Use iloc[0] as rt returns series as it does not know the
         # number of rows returned
-        query = rt[
-            (rt.ServiceNo == row.ServiceNo) & \
-            (rt.Direction == row.Direction) & \
-            (rt.StopSequence == row.StopSequence + 1)]
+        next_service_stop = rt.loc[idx + 1]
+        if next_service_stop.StopSequence == row.StopSequence + 1:
+            next_service_stops.append(next_service_stop)
 
-        if len(query):
-            next_service_stops.append(query.iloc[0])
     return next_service_stops
 
 def dijkstra(origin_code, goal_code):
@@ -144,7 +141,7 @@ def dijkstra(origin_code, goal_code):
     # Initialize origin node
     origin_services = rt[(rt.BusStopCode == origin_code)]
     for idx, origin_service in origin_services.iterrows():
-        origin = Node(origin_code, origin_service, 0, 0)
+        origin = Node(origin_code, origin_service.name, 0, 0)
         traversal_queue.append(origin)
 
     # Dijkstra iterations
@@ -169,14 +166,14 @@ def dijkstra(origin_code, goal_code):
             if (next_bus_stop_code, next_service_no) in nodes:
                 next_node = nodes[(next_bus_stop_code, next_service_no)]
             else:
-                next_node = Node(next_bus_stop_code, next_service_stop)
+                next_node = Node(next_bus_stop_code, next_service_stop.name)
                 nodes[(next_bus_stop_code, next_service_no)] = next_node
                 traversal_queue.append(next_node)
 
             # print('++', next_node)
 
             # Create edge and relax
-            edge = Edge(current_node, next_service_stop, next_node)
+            edge = Edge(current_node, next_service_stop.name, next_node)
 
             # print(' -', edge)
 

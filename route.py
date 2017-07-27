@@ -118,10 +118,10 @@ class Edge:
 def discover_next_service_stops(node):
     next_service_stops = []
     # Discover next stop of each service
-    for idx, row in node.services.iterrows():
+    for row in node.services.itertuples():
         # Use iloc[0] as rt returns series as it does not know the
         # number of rows returned
-        next_service_stop = rt.loc[idx + 1]
+        next_service_stop = rt.loc[row.index + 1]
         if next_service_stop.StopSequence == row.StopSequence + 1:
             next_service_stops.append(next_service_stop)
 
@@ -137,8 +137,8 @@ def dijkstra(origin_code, goal_code):
 
     # Initialize origin node
     origin_services = rt[(rt.BusStopCode == origin_code)]
-    for idx, origin_service in origin_services.iterrows():
-        origin = Node(origin_code, origin_service.name, 0, 0)
+    for origin_service in origin_services.itertuples():
+        origin = Node(origin_code, origin_service.index, 0, 0)
         traversal_queue.append(origin)
 
     # Dijkstra iterations

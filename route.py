@@ -27,7 +27,7 @@ class Node:
     def __init__(self, service, best_cost=inf, best_dist=inf, best_route=[]):
         self.service = service
         self.bus_stop_code = self.service.BusStopCode
-        self.bus_stop = bs[bs.BusStopCode == self.bus_stop_code].iloc[0]
+        self.bus_stop = bs.loc[self.bus_stop_code]
         self.h_dist = self.calculate_heuristic()
         self.best_dist = best_dist
         self.best_cost = best_cost
@@ -133,7 +133,7 @@ def dijkstra(origin_code, goal_code):
     optimal_nodes = set()
 
     # Initialize goal stop
-    Node.goal_stop = bs[(bs.BusStopCode == goal_code)].iloc[0]
+    Node.goal_stop = bs.loc[str(goal_code)]
 
     # Initialize origin node
     origin_services = rt[(rt.BusStopCode == origin_code)]
@@ -196,6 +196,7 @@ def main():
 
     DEBUG_ORIGIN = '59039'
     DEBUG_GOAL = '54589'
+    bs.set_index('BusStopCode', inplace=True)
 
     # Argument handling
     parser = ArgumentParser(

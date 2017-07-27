@@ -132,8 +132,8 @@ def dijkstra(origin_code, goal_code):
     nodes = {}
     optimal_nodes = set()
 
-    # Initialize goal node
-    Node.goal_stop = bs[(bs.BusStopCode == goal_code)]
+    # Initialize goal stop
+    Node.goal_stop = bs[(bs.BusStopCode == goal_code)].iloc[0]
 
     # Initialize origin node
     origin_services = rt[(rt.BusStopCode == origin_code)]

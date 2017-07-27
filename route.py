@@ -82,10 +82,7 @@ class Edge:
         self.update_dest_distance_cost_route()
 
     def calculate_dist(self):
-        prev_service_stop = self.source.services[
-            (self.source.services.ServiceNo == self.service.ServiceNo) & \
-            (self.source.services.Direction == self.service.Direction) & \
-            (self.source.services.StopSequence == self.service.StopSequence - 1)].iloc[0]
+        prev_service_stop = rt.loc[self.service.name - 1]
         return self.service.Distance - prev_service_stop.Distance
 
     def calculate_cost(self):

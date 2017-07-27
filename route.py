@@ -22,6 +22,7 @@ TRANSFER_PENALTY = 1
 @total_ordering
 class Node:
     goal_stop = None
+    heuristics = {}
 
     def __init__(self, bus_stop_code, service=None, best_cost=inf,
                  best_dist=inf, best_route=[], service_no=None):
@@ -50,9 +51,14 @@ class Node:
         return km
 
     def calculate_heuristic(self):
-        return self.haversine(
-            self.bus_stop.Longitude, self.bus_stop.Latitude,
-            self.goal_stop.Longitude, self.goal_stop.Latitude)
+        if self.bus_stop_code in Node.heuristics:
+            return Node.heuristics[self.bus_stop_code]
+        else:
+            heuristic = self.haversine(
+                self.bus_stop.Longitude, self.bus_stop.Latitude,
+                self.goal_stop.Longitude, self.goal_stop.Latitude)
+            Node.heuristics[self.bus_stop_code] = heuristic
+        return heuristic
 
     def __lt__(self, other):
         return self.best_cost < other.best_cost

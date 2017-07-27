@@ -24,15 +24,15 @@ class Node:
     goal_stop = None
     heuristics = {}
 
-    def __init__(self, bus_stop_code, service_id=None, best_cost=inf,
-                 best_dist=inf, best_route=[]):
-        self.bus_stop_code = bus_stop_code
+    def __init__(self, service, best_cost=inf, best_dist=inf, best_route=[]):
+        self.service = service
+        self.bus_stop_code = self.service.BusStopCode
         self.bus_stop = bs[bs.BusStopCode == self.bus_stop_code].iloc[0]
         self.h_dist = self.calculate_heuristic()
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_route = best_route
-        self.service = rt.loc[service_id]
+
         self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
 
     def haversine(self, lon1, lat1, lon2, lat2):
@@ -137,8 +137,8 @@ def dijkstra(origin_code, goal_code):
 
     # Initialize origin node
     origin_services = rt[(rt.BusStopCode == origin_code)]
-    for origin_service in origin_services.itertuples():
-        origin = Node(origin_code, origin_service.index, 0, 0)
+    for idx, origin_service in origin_services.iterrows():
+        origin = Node(origin_service, 0, 0)
         traversal_queue.append(origin)
 
     # Dijkstra iterations
@@ -163,7 +163,7 @@ def dijkstra(origin_code, goal_code):
             if (next_bus_stop_code, next_service_no) in nodes:
                 next_node = nodes[(next_bus_stop_code, next_service_no)]
             else:
-                next_node = Node(next_bus_stop_code, next_service_stop.name)
+                next_node = Node(next_service_stop)
                 nodes[(next_bus_stop_code, next_service_no)] = next_node
                 traversal_queue.append(next_node)
 

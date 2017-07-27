@@ -218,7 +218,7 @@ def main():
         default=DEBUG_GOAL)
 
     args = parser.parse_args()
-    TRANSFER_PENALTY = args.transfer_penalty
+    TRANSFER_PENALTY = int(args.transfer_penalty)
     origin = args.origin
     goals = args.goals
 

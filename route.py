@@ -23,15 +23,15 @@ TRANSFER_PENALTY = 1
 class Node:
     goal_stop = None
 
-    def __init__(self, bus_stop_code, service=None, service_no=None, best_cost=inf,
-                 best_dist=inf, best_route=[]):
+    def __init__(self, bus_stop_code, service=None, best_cost=inf,
+                 best_dist=inf, best_route=[], service_no=None):
         self.bus_stop_code = bus_stop_code
         self.bus_stop = bs[bs.BusStopCode == self.bus_stop_code].iloc[0]
         self.h_dist = self.calculate_heuristic()
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_route = best_route
-        self.service = service # Service stop
+        self.service = service if not service.empty else rt[rt.ServiceNo == service_no]
         self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
 
     def haversine(self, lon1, lat1, lon2, lat2):
@@ -137,8 +137,7 @@ def dijkstra(origin_code, goal_code):
 
     # Initialize origin node
     origin_services = rt[(rt.BusStopCode == origin_code)]
-    for origin_service in origin_services.itertuples():
-        print(type(origin_service))
+    for idx, origin_service in origin_services.iterrows():
         origin = Node(origin_code, origin_service, 0, 0)
         traversal_queue.append(origin)
 

@@ -7,11 +7,19 @@ from pprint import pprint
 import pandas as pd
 from sqlalchemy import create_engine
 
-# TODO: ALlow multiple destination nodes
+# Features
+# STASHED: Use Python logging module
+# TODO: Allow multiple destination nodes
 # TODO: Allow multiple solutions per destination. Currently takes the first optimal service stop as solution and ignores equally good routes
 # TODO: Allow multiple source nodes
 # TODO: Allow for multiple route suggestions without re-running algorithm
 # TODO: Add custom exceptions instead of exit()
+
+# Optimizations
+# TODO: Prevent regeneration of nodes on the same route but with additional transfer
+# TODO:     - Follow up with a switch to check if transfer penalty == 0
+# TODO: Save bus-stops table with BusStopCode as index to remove set_index() step
+# TODO: Create new table from bus-routes grouped by BusStopCode to speed up node discovery
 
 db_conn = create_engine('sqlite:///sg-bus-router.db')
 rt = pd.read_sql_table(table_name='bus_routes', con=db_conn)
@@ -119,8 +127,6 @@ def discover_next_service_stops(node):
     next_service_stops = []
     # Discover next stop of each service
     for idx, row in node.services.iterrows():
-        # Use iloc[0] as rt returns series as it does not know the
-        # number of rows returned
         next_service_stop = rt.loc[idx + 1]
         if next_service_stop.StopSequence == row.StopSequence + 1:
             next_service_stops.append(next_service_stop)
@@ -139,6 +145,7 @@ def dijkstra(origin_code, goal_code):
     origin_services = rt[(rt.BusStopCode == origin_code)]
     for idx, origin_service in origin_services.iterrows():
         origin = Node(origin_service, 0, 0)
+        nodes[(origin_code, origin_service.ServiceNo)] = origin
         traversal_queue.append(origin)
 
     # Dijkstra iterations
@@ -190,12 +197,13 @@ def main():
 
     # No transfers      : 19051 -> 18111
     # Single transfer   : 19051 -> 18129
-    # Goal              : 19051 -> 03381
     # Equally optimal   : 59039 -> 54589
     # Loops             : 11389 -> 11381
+    # LS                : 19051 -> 03381
+    # Tim               : 18129 -> 10199
 
-    DEBUG_ORIGIN = '59039'
-    DEBUG_GOAL = '54589'
+    DEBUG_ORIGIN = '19051'
+    DEBUG_GOAL = '03381'
     bs.set_index('BusStopCode', inplace=True)
 
     # Argument handling

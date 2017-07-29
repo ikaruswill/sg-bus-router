@@ -25,7 +25,7 @@ db_conn = create_engine('sqlite:///sg-bus-router.db')
 rt = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 bs = pd.read_sql_table(table_name='bus_stops', con=db_conn)
 
-TRANSFER_PENALTY = 1
+TRANSFER_PENALTY = 5
 
 @total_ordering
 class Node:
@@ -39,6 +39,7 @@ class Node:
         self.h_dist = self.calculate_heuristic()
         self.best_dist = best_dist
         self.best_cost = best_cost
+        self.best_metric = self.best_cost + self.h_dist
         self.best_route = best_route
 
         self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
@@ -69,14 +70,14 @@ class Node:
         return heuristic
 
     def __lt__(self, other):
-        return self.best_cost < other.best_cost
+        return self.best_metric < other.best_metric
 
     def __hash__(self):
         return hash('{} {}'.format(self.bus_stop_code, self.service.ServiceNo))
 
     def __repr__(self):
         return '{} ({:>4}): {:>6.1f} | {:>6.1f} | {:>6.1f}km'.format(
-            self.bus_stop_code, self.service.ServiceNo, self.best_cost,
+            self.bus_stop_code, self.service.ServiceNo, self.best_metric,
             self.h_dist, self.best_dist)
 
 
@@ -108,11 +109,14 @@ class Edge:
 
     def update_dest_distance_cost_route(self):
         new_dist = self.source.best_dist + self.distance
-        stops_per_km = (len(self.source.best_route) + 1)/new_dist
-        new_cost = self.source.best_cost + self.cost + stops_per_km + self.dest.h_dist
-        if new_cost < self.dest.best_cost:
+        # stops_per_km = (len(self.source.best_route) + 1)/new_dist
+        # new_cost = self.source.best_cost + self.cost + stops_per_km + self.dest.h_dist
+        new_cost = self.source.best_cost + self.cost
+        new_metric = new_cost + self.dest.h_dist
+        if new_metric < self.dest.best_metric:
             self.dest.best_cost = new_cost
             self.dest.best_dist = new_dist
+            self.dest.best_metric = new_metric
             self.dest.service = self.service
             self.dest.best_route = self.source.best_route + [self]
 
@@ -181,6 +185,7 @@ def dijkstra(origin_code, goal_code):
 
             # print(' -', edge)
 
+        # FIXME: Final stop will take the first bus service encountered that reaches destination
         # Store optimal route found for bus stop (Service agnostic)
         if current_node.bus_stop_code == goal_code:
             break

@@ -108,7 +108,7 @@ class Edge:
 
     def update_dest_distance_cost_route(self):
         new_dist = self.source.best_dist + self.distance
-        stops_per_km = new_dist/(len(self.source.best_route) + 1)
+        stops_per_km = (len(self.source.best_route) + 1)/new_dist
         new_cost = self.source.best_cost + self.cost + stops_per_km + self.dest.h_dist
         if new_cost < self.dest.best_cost:
             self.dest.best_cost = new_cost

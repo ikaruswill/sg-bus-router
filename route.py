@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from collections import defaultdict
 from functools import total_ordering
 import heapq
 from math import radians, cos, sin, asin, sqrt, inf
@@ -32,16 +33,14 @@ class Node:
     goal_stop = None
     heuristics = {}
 
-    def __init__(self, service, best_cost=inf, best_dist=inf, best_route=[]):
-        self.service = service
-        self.bus_stop_code = self.service.BusStopCode
+    def __init__(self, bus_stop_code, best_cost=inf, best_dist=inf, best_route=[]):
+        self.bus_stop_code = bus_stop_code
         self.bus_stop = bs.loc[self.bus_stop_code]
         self.h_dist = self.calculate_heuristic()
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_metric = self.best_cost + self.h_dist
         self.best_route = best_route
-
         self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
 
     def haversine(self, lon1, lat1, lon2, lat2):
@@ -76,29 +75,25 @@ class Node:
         return hash('{} {}'.format(self.bus_stop_code, self.service.ServiceNo))
 
     def __repr__(self):
-        return '{} ({:>4}): {:>6.1f} | {:>6.1f} | {:>6.1f}km'.format(
-            self.bus_stop_code, self.service.ServiceNo, self.best_metric,
+        return '{}: {:>6.1f} | {:>6.1f} | {:>6.1f}km'.format(
+            self.bus_stop_code, self.best_metric,
             self.h_dist, self.best_dist)
 
 
 class Edge:
-    def __init__(self, source, service_id, dest):
+    def __init__(self, source, services, dest, distance):
         self.source = source
-        self.service = rt.loc[service_id]
         self.dest = dest
-        self.distance = self.calculate_dist()
+        self.services = services
+        self.distance = distance
         self.cost = self.calculate_cost()
         self.update_dest_distance_cost_route()
 
-    def calculate_dist(self):
-        prev_service_stop = rt.loc[self.service.name - 1]
-        return self.service.Distance - prev_service_stop.Distance
-
     def calculate_cost(self):
         cost = self.distance
-        if self.service.ServiceNo != self.source.service.ServiceNo:
-            # Distance in km equivalent to the time & effort a transfer requires
-            cost += TRANSFER_PENALTY
+        # if self.service.ServiceNo != self.source.service.ServiceNo:
+        #     # Distance in km equivalent to the time & effort a transfer requires
+        #     cost += TRANSFER_PENALTY
 
         if cost < 0:
             print('NEGATIVE EDGE')
@@ -117,25 +112,24 @@ class Edge:
             self.dest.best_cost = new_cost
             self.dest.best_dist = new_dist
             self.dest.best_metric = new_metric
-            self.dest.service = self.service
             self.dest.best_route = self.source.best_route + [self]
 
     def __repr__(self):
-        return '< {} ({:>4}) --> {} ({:>4}) >: {:>4.1f} | {:>4.1f}km'.format(
-            self.source.bus_stop_code, self.source.service.ServiceNo,
-            self.dest.bus_stop_code, self.dest.service.ServiceNo, self.cost,
-            self.distance)
+        return '< {} --> {} >: {:>4.1f} | {:>4.1f}km | {}'.format(
+            self.source.bus_stop_code, self.dest.bus_stop_code, self.cost,
+            self.distance, self.services)
 
 
-def discover_next_service_stops(node):
-    next_service_stops = []
+def discover_next_stops(node):
+    next_stops = defaultdict(lambda: defaultdict(set))
     # Discover next stop of each service
-    for idx, row in node.services.iterrows():
+    for idx, current_service_stop in node.services.iterrows():
         next_service_stop = rt.loc[idx + 1]
-        if next_service_stop.StopSequence == row.StopSequence + 1:
-            next_service_stops.append(next_service_stop)
+        if next_service_stop.StopSequence == current_service_stop.StopSequence + 1:
+            next_stops[next_service_stop.BusStopCode]['services'].add(next_service_stop.ServiceNo)
+            next_stops[next_service_stop.BusStopCode]['distance'] = next_service_stop.Distance - current_service_stop.Distance
 
-    return next_service_stops
+    return next_stops
 
 def dijkstra(origin_code, goal_code):
     traversal_queue = []
@@ -146,42 +140,38 @@ def dijkstra(origin_code, goal_code):
     Node.goal_stop = bs.loc[str(goal_code)]
 
     # Initialize origin node
-    origin_services = rt[(rt.BusStopCode == origin_code)]
-    for idx, origin_service in origin_services.iterrows():
-        origin = Node(origin_service, 0, 0)
-        nodes[(origin_code, origin_service.ServiceNo)] = origin
-        traversal_queue.append(origin)
+    origin = Node(origin_code, 0, 0)
+    traversal_queue.append(origin)
 
     # Dijkstra iterations
     while traversal_queue:
         current_node = heapq.heappop(traversal_queue)
-        nodes[(current_node.bus_stop_code, current_node.service.ServiceNo)] = current_node
+        nodes[current_node.bus_stop_code] = current_node
         optimal_nodes.add(current_node.bus_stop_code)
 
         print(current_node)
 
-        next_service_stops = discover_next_service_stops(current_node)
+        next_service_stops = discover_next_stops(current_node)
 
         # Create next nodes
-        for next_service_stop in next_service_stops:
-            next_bus_stop_code = next_service_stop.BusStopCode
-            next_service_no = next_service_stop.ServiceNo
+        for next_bus_stop_code, next_bus_stop_info in next_service_stops.items():
             # Already optimal, ignore
             if next_bus_stop_code in optimal_nodes:
                 continue
 
             # Check if node already exists
-            if (next_bus_stop_code, next_service_no) in nodes:
-                next_node = nodes[(next_bus_stop_code, next_service_no)]
+            if next_bus_stop_code in nodes:
+                next_node = nodes[next_bus_stop_code]
             else:
-                next_node = Node(next_service_stop)
-                nodes[(next_bus_stop_code, next_service_no)] = next_node
+                next_node = Node(next_bus_stop_code)
+                nodes[next_bus_stop_code] = next_node
                 traversal_queue.append(next_node)
 
             # print('++', next_node)
 
             # Create edge and relax
-            edge = Edge(current_node, next_service_stop.name, next_node)
+            edge = Edge(current_node, next_bus_stop_info['services'],
+                        next_node, next_bus_stop_info['distance'])
 
             # print(' -', edge)
 
@@ -208,7 +198,7 @@ def main():
     # Tim               : 18129 -> 10199
 
     DEBUG_ORIGIN = '19051'
-    DEBUG_GOAL = '03381'
+    DEBUG_GOAL = '18129'
     bs.set_index('BusStopCode', inplace=True)
 
     # Argument handling
@@ -224,7 +214,7 @@ def main():
         '-g', '--goal', help="destination bus stop code", default=DEBUG_GOAL)
 
     args = parser.parse_args()
-    TRANSFER_PENALTY = int(args.transfer_penalty)
+    TRANSFER_PENALTY = float(args.transfer_penalty)
     origin = args.origin
     goal = args.goal
 

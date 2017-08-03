@@ -101,7 +101,7 @@ class Edge:
                 self.has_transferred = True
 
         if cost < 0:
-            print('NEGATIVE EDGE')
+            print('ERROR: Negative edge cost')
             self.cost = cost
             exit(repr(self))
 
@@ -133,11 +133,14 @@ def discover_next_stops(node):
     next_stops = defaultdict(lambda: defaultdict(set))
     # Discover next stop of each service
     for idx, current_service_stop in node.services.iterrows():
-        next_service_stop = rt.loc[idx + 1]
+        try:
+            next_service_stop = rt.loc[idx + 1]
+        except KeyError:
+            print('INFO: Reached end of dataframe')
+            continue
         if next_service_stop.StopSequence == current_service_stop.StopSequence + 1:
             next_stops[next_service_stop.BusStopCode]['services'].add(next_service_stop.ServiceNo)
             next_stops[next_service_stop.BusStopCode]['distance'] = next_service_stop.Distance - current_service_stop.Distance
-
     return next_stops
 
 def dijkstra(origin_code, goal_code):

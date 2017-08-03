@@ -41,6 +41,7 @@ class Node:
         self.best_cost = best_cost
         self.best_metric = self.best_cost + self.h_dist
         self.best_route = best_route
+        self.last_transfer_index = -1
         self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
 
     def haversine(self, lon1, lat1, lon2, lat2):
@@ -86,14 +87,18 @@ class Edge:
         self.dest = dest
         self.services = services
         self.distance = distance
+        self.has_transferred = False
         self.cost = self.calculate_cost()
         self.update_dest_distance_cost_route()
 
     def calculate_cost(self):
         cost = self.distance
-        # if self.service.ServiceNo != self.source.service.ServiceNo:
-        #     # Distance in km equivalent to the time & effort a transfer requires
-        #     cost += TRANSFER_PENALTY
+        if self.source.best_route:
+            if not self.services.intersection(
+                self.source.best_route[self.source.last_transfer_index].services):
+                # Distance in km equivalent to the time & effort a transfer requires
+                cost += TRANSFER_PENALTY
+                self.has_transferred = True
 
         if cost < 0:
             print('NEGATIVE EDGE')
@@ -113,6 +118,10 @@ class Edge:
             self.dest.best_dist = new_dist
             self.dest.best_metric = new_metric
             self.dest.best_route = self.source.best_route + [self]
+            if self.has_transferred:
+                self.dest.last_transfer_index = len(self.dest.best_route) - 1
+            else:
+                self.dest.last_transfer_index = self.source.last_transfer_index
 
     def __repr__(self):
         return '< {} --> {} >: {:>4.1f} | {:>4.1f}km | {}'.format(
@@ -141,6 +150,7 @@ def dijkstra(origin_code, goal_code):
 
     # Initialize origin node
     origin = Node(origin_code, 0, 0)
+    origin.last_transfer_index = 0
     traversal_queue.append(origin)
 
     # Dijkstra iterations
@@ -198,7 +208,7 @@ def main():
     # Tim               : 18129 -> 10199
 
     DEBUG_ORIGIN = '19051'
-    DEBUG_GOAL = '18129'
+    DEBUG_GOAL = '03381'
     bs.set_index('BusStopCode', inplace=True)
 
     # Argument handling

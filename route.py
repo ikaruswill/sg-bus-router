@@ -11,20 +11,19 @@ from sqlalchemy import create_engine
 # Features
 # STASHED: Use Python logging module
 # TODO: Allow multiple destination nodes
-# TODO: Allow multiple solutions per destination. Currently takes the first optimal service stop as solution and ignores equally good routes
 # TODO: Allow multiple source nodes
 # TODO: Allow for multiple route suggestions without re-running algorithm
 # TODO: Add custom exceptions instead of exit()
 
 # Optimizations
-# TODO: Prevent regeneration of nodes on the same route but with additional transfer
-# TODO:     - Follow up with a switch to check if transfer penalty == 0
 # TODO: Save bus-stops table with BusStopCode as index to remove set_index() step
 # TODO: Create new table from bus-routes grouped by BusStopCode to speed up node discovery
 
 db_conn = create_engine('sqlite:///sg-bus-router.db')
 rt = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 bs = pd.read_sql_table(table_name='bus_stops', con=db_conn)
+
+bs.set_index('BusStopCode', inplace=True)
 
 TRANSFER_PENALTY = 5
 
@@ -143,6 +142,27 @@ def discover_next_stops(node):
             next_stops[next_service_stop.BusStopCode]['distance'] = next_service_stop.Distance - current_service_stop.Distance
     return next_stops
 
+def postprocess_route(route):
+    # Forward intersect
+    reference_services = route[0].services
+    for edge in route:
+        if edge.has_transferred:
+            reference_services = edge.services
+            continue
+        edge.services = edge.services.intersection(reference_services)
+
+    # Reverse intersect
+    route = route[::-1]
+    reference_services = route[0].services
+    for edge in route:
+        if edge.has_transferred:
+            reference_services = None
+            continue
+        if reference_services is None:
+            reference_services = edge.services
+            continue
+        edge.services = edge.services.intersection(reference_services)
+
 def dijkstra(origin_code, goal_code):
     traversal_queue = []
     nodes = {}
@@ -197,6 +217,8 @@ def dijkstra(origin_code, goal_code):
         # Maintain heap property in event node best cost has changed
         heapq.heapify(traversal_queue)
 
+
+    postprocess_route(current_node.best_route)
     return current_node
 
 def main():
@@ -209,9 +231,8 @@ def main():
     # LS                : 19051 -> 03381
     # Tim               : 18129 -> 10199
 
-    DEBUG_ORIGIN = '19051'
-    DEBUG_GOAL = '03381'
-    bs.set_index('BusStopCode', inplace=True)
+    DEBUG_ORIGIN = '59039'
+    DEBUG_GOAL = '54589'
 
     # Argument handling
     parser = ArgumentParser(

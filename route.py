@@ -33,15 +33,15 @@ class Node:
     goal_stop = None
     heuristics = {}
 
-    def __init__(self, bus_stop_code, best_cost=inf, best_dist=inf, best_route=[]):
+    def __init__(self, bus_stop_code, best_cost=inf, best_dist=inf, last_transfer_index=-1):
         self.bus_stop_code = bus_stop_code
         self.bus_stop = bs.loc[self.bus_stop_code]
         self.h_dist = self.calculate_heuristic()
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_metric = self.best_cost + self.h_dist
-        self.best_route = best_route
-        self.last_transfer_index = -1
+        self.best_route = []
+        self.last_transfer_index = last_transfer_index
         self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
 
     def haversine(self, lon1, lat1, lon2, lat2):
@@ -152,8 +152,7 @@ def dijkstra(origin_code, goal_code):
     Node.goal_stop = bs.loc[str(goal_code)]
 
     # Initialize origin node
-    origin = Node(origin_code, 0, 0)
-    origin.last_transfer_index = 0
+    origin = Node(origin_code, 0, 0, 0)
     traversal_queue.append(origin)
 
     # Dijkstra iterations

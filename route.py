@@ -93,6 +93,8 @@ class Edge:
     def calculate_cost(self):
         cost = self.distance
         if self.source.best_route:
+            # If current edge services are disjoint with the best route,
+            # a transfer has occurred
             if not self.services.intersection(
                 self.source.best_route[self.source.last_transfer_index].services):
                 # Distance in km equivalent to the time & effort a transfer requires
@@ -155,13 +157,12 @@ def postprocess_route(route):
     route = route[::-1]
     reference_services = route[0].services
     for edge in route:
-        if edge.has_transferred:
-            reference_services = None
-            continue
         if reference_services is None:
             reference_services = edge.services
             continue
         edge.services = edge.services.intersection(reference_services)
+        if edge.has_transferred:
+            reference_services = None
 
 def dijkstra(origin_code, goal_code):
     traversal_queue = []
@@ -230,6 +231,7 @@ def main():
     # Loops             : 11389 -> 11381
     # LS                : 19051 -> 03381
     # Tim               : 18129 -> 10199
+    # Skipped stops     : 59119 -> 63091
 
     DEBUG_ORIGIN = '59039'
     DEBUG_GOAL = '54589'

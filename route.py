@@ -91,7 +91,7 @@ class Edge:
         self.update_dest_distance_cost_route()
 
     def calculate_cost(self):
-        cost = self.distance
+        cost = 1/self.distance
         if self.source.best_route:
             # If current edge services are disjoint with the best route,
             # a transfer has occurred
@@ -110,8 +110,6 @@ class Edge:
 
     def update_dest_distance_cost_route(self):
         new_dist = self.source.best_dist + self.distance
-        # stops_per_km = (len(self.source.best_route) + 1)/new_dist
-        # new_cost = self.source.best_cost + self.cost + stops_per_km + self.dest.h_dist
         new_cost = self.source.best_cost + self.cost
         new_metric = new_cost + self.dest.h_dist
         if new_metric < self.dest.best_metric:

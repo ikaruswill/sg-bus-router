@@ -143,24 +143,30 @@ def discover_next_stops(node):
     return next_stops
 
 def postprocess_route(route):
-    # Forward intersect
-    reference_services = route[0].services
-    for edge in route:
+    # Find legs in route
+    route_legs = []
+    start_idx = 0
+    for i, edge in enumerate(route):
         if edge.has_transferred:
-            reference_services = edge.services
-            continue
-        edge.services = edge.services.intersection(reference_services)
+            route_legs.append((start_idx, i - 1))
+            start_idx = i
+    route_legs.append((start_idx, i))
 
-    # Reverse intersect
-    route = route[::-1]
-    reference_services = route[0].services
-    for edge in route:
-        if reference_services is None:
-            reference_services = edge.services
-            continue
-        edge.services = edge.services.intersection(reference_services)
-        if edge.has_transferred:
-            reference_services = None
+    # Remove unnecessary services and mark bypassed stops
+    indexes_to_delete = []
+    for start_idx, end_idx in route_legs:
+        minimum_services_set = route[start_idx].services.intersection(
+            route[end_idx].services)
+        for i in range(start_idx, end_idx + 1):
+            route[i].services = route[i].services.intersection(
+                minimum_services_set)
+            if len(route[i].services) < len(minimum_services_set):
+                indexes_to_delete.append(i)
+
+    # Delete bypassed stops from the back to avoid interference from reindexing
+    for i in reversed(indexes_to_delete):
+        del route[i]
+
 
 def dijkstra(origin_code, goal_code):
     traversal_queue = []

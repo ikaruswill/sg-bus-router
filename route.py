@@ -149,7 +149,7 @@ def postprocess_latest_transfer(route):
         if edge.has_transferred:
             reference_services = edge.services
             continue
-        edge.services.intersection_update(reference_services)
+        edge.services &= reference_services
 
     # Reverse intersect
     reference_services = route[-1].services
@@ -157,7 +157,7 @@ def postprocess_latest_transfer(route):
         if reference_services is None:
             reference_services = edge.services
             continue
-        edge.services.intersection_update(reference_services)
+        edge.services &= reference_services
         if edge.has_transferred:
             reference_services = None
 
@@ -170,19 +170,18 @@ def postprocess_earliest_transfer(route):
             reference_services = edge.services
             all_route_services.append(edge.services)
         else:
-            all_route_services.append(
-                edge.services.intersection(reference_services))
+            all_route_services.append(edge.services & reference_services)
 
     # Reverse intersect disregarding predefined transfer points
     # NOTE: Discards alternative services if earliest transfer stop lies on
     #       a 'narrow' point
     reference_services = all_route_services[-1]
     for edge, forward_intersected_services in zip(reversed(route),
-                                              reversed(all_route_services)):
-        allowed_services = edge.services.intersection(reference_services)
+                                                  reversed(all_route_services)):
+        allowed_services = edge.services & reference_services
         if not allowed_services:
             reference_services = forward_intersected_services
-            allowed_services = edge.services.intersection(reference_services)
+            allowed_services = edge.services & reference_services
         edge.services = allowed_services
 
 def postprocess_permissive_route(route):
@@ -203,8 +202,7 @@ def postprocess_permissive_route(route):
             reference_services = edge.services
             all_route_services.append(edge.services)
         else:
-            all_route_services.append(
-                edge.services.intersection(reference_services))
+            all_route_services.append(edge.services & reference_services)
 
     # Reverse intersect
     reference_services = all_route_services[-1]
@@ -212,7 +210,7 @@ def postprocess_permissive_route(route):
         if reference_services is None:
             reference_services = all_route_services[i]
             continue
-        all_route_services[i].intersection_update(reference_services)
+        all_route_services[i] &= reference_services
         if route[i].has_transferred:
             reference_services = None
 
@@ -225,9 +223,8 @@ def postprocess_permissive_route(route):
         except StopIteration:
             next_start_services = all_route_services[-1]
         for i in range(start, end + 1):
-            reference_services = all_route_services[i].union(
-                next_start_services)
-            route[i].services.intersection_update(reference_services)
+            reference_services = all_route_services[i] | next_start_services
+            route[i].services &= reference_services
 
 
 def dijkstra(origin_code, goal_code):
@@ -274,7 +271,6 @@ def dijkstra(origin_code, goal_code):
 
             # print(' -', edge)
 
-        # FIXME: Final stop will take the first bus service encountered that reaches destination
         # Store optimal route found for bus stop (Service agnostic)
         if current_node.bus_stop_code == goal_code:
             break

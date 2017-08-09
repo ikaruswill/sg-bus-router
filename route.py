@@ -91,7 +91,7 @@ class Edge:
         self.update_dest_distance_cost_route()
 
     def calculate_cost(self):
-        cost = 1/self.distance
+        cost = self.distance + 1/self.distance
         if self.source.best_route:
             # If current edge services are disjoint with the best route,
             # a transfer has occurred
@@ -231,8 +231,8 @@ def main():
     # Tim               : 18129 -> 10199
     # Skipped stops     : 59119 -> 63091
 
-    DEBUG_ORIGIN = '59039'
-    DEBUG_GOAL = '54589'
+    DEBUG_ORIGIN = '59119'
+    DEBUG_GOAL = '63091'
 
     # Argument handling
     parser = ArgumentParser(

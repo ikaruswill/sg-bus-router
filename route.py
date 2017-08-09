@@ -142,7 +142,7 @@ def discover_next_stops(node):
             next_stops[next_service_stop.BusStopCode]['distance'] = next_service_stop.Distance - current_service_stop.Distance
     return next_stops
 
-def postprocess_route(route):
+def postprocess_latest_transfer(route):
     # Forward intersect
     reference_services = route[0].services
     for edge in route:
@@ -152,15 +152,38 @@ def postprocess_route(route):
         edge.services = edge.services.intersection(reference_services)
 
     # Reverse intersect
-    route = route[::-1]
-    reference_services = route[0].services
-    for edge in route:
+    reference_services = route[-1].services
+    for edge in reversed(route):
         if reference_services is None:
             reference_services = edge.services
             continue
         edge.services = edge.services.intersection(reference_services)
         if edge.has_transferred:
             reference_services = None
+
+def postprocess_earliest_transfer(route):
+    all_route_services = []
+    # Forward intersect and make a copy
+    reference_services = route[0].services
+    for edge in route:
+        if edge.has_transferred:
+            reference_services = edge.services
+            all_route_services.append(edge.services)
+        else:
+            all_route_services.append(
+                edge.services.intersection(reference_services))
+
+    # Reverse intersect disregarding predefined transfer points
+    # NOTE: Discards alternative services if earliest transfer stop lies on
+    #       a 'narrow' point
+    reference_services = all_route_services[-1]
+    for edge, forward_intersected_services in zip(reversed(route),
+                                              reversed(all_route_services)):
+        allowed_services = edge.services.intersection(reference_services)
+        if not allowed_services:
+            reference_services = forward_intersected_services
+            allowed_services = edge.services.intersection(reference_services)
+        edge.services = allowed_services
 
 def dijkstra(origin_code, goal_code):
     traversal_queue = []
@@ -217,7 +240,8 @@ def dijkstra(origin_code, goal_code):
         heapq.heapify(traversal_queue)
 
 
-    postprocess_route(current_node.best_route)
+    # postprocess_latest_transfer(current_node.best_route)
+    postprocess_earliest_transfer(current_node.best_route)
     return current_node
 
 def main():

@@ -185,6 +185,50 @@ def postprocess_earliest_transfer(route):
             allowed_services = edge.services.intersection(reference_services)
         edge.services = allowed_services
 
+def postprocess_permissive_route(route):
+    # Find legs in route
+    route_legs = []
+    start_idx = 0
+    for i, edge in enumerate(route):
+        if edge.has_transferred:
+            route_legs.append((start_idx, i - 1))
+            start_idx = i
+    route_legs.append((start_idx, i))
+
+    all_route_services = []
+    # Forward intersect and make a copy
+    reference_services = route[0].services
+    for edge in route:
+        if edge.has_transferred:
+            reference_services = edge.services
+            all_route_services.append(edge.services)
+        else:
+            all_route_services.append(
+                edge.services.intersection(reference_services))
+
+    # Reverse intersect
+    reference_services = all_route_services[-1]
+    for i in reversed(range(len(all_route_services))):
+        if reference_services is None:
+            reference_services = all_route_services[i]
+            continue
+        all_route_services[i] = all_route_services[i].intersection(
+            reference_services)
+        if route[i].has_transferred:
+            reference_services = None
+
+    # Permissive intersect
+    next_legs = iter(route_legs[1:])
+    for start, end, in route_legs:
+        try:
+            next_start_services = all_route_services[next(next_legs)[0]]
+        except StopIteration:
+            next_start_services = all_route_services[-1]
+        for i in range(start, end + 1):
+            reference_services = all_route_services[i] | next_start_services
+            route[i].services = route[i].services.intersection(reference_services)
+
+
 def dijkstra(origin_code, goal_code):
     traversal_queue = []
     nodes = {}
@@ -241,7 +285,8 @@ def dijkstra(origin_code, goal_code):
 
 
     # postprocess_latest_transfer(current_node.best_route)
-    postprocess_earliest_transfer(current_node.best_route)
+    # postprocess_earliest_transfer(current_node.best_route)
+    postprocess_permissive_route(current_node.best_route)
     return current_node
 
 def main():

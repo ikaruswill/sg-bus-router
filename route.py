@@ -149,7 +149,7 @@ def postprocess_latest_transfer(route):
         if edge.has_transferred:
             reference_services = edge.services
             continue
-        edge.services = edge.services.intersection(reference_services)
+        edge.services.intersection_update(reference_services)
 
     # Reverse intersect
     reference_services = route[-1].services
@@ -157,7 +157,7 @@ def postprocess_latest_transfer(route):
         if reference_services is None:
             reference_services = edge.services
             continue
-        edge.services = edge.services.intersection(reference_services)
+        edge.services.intersection_update(reference_services)
         if edge.has_transferred:
             reference_services = None
 
@@ -188,12 +188,12 @@ def postprocess_earliest_transfer(route):
 def postprocess_permissive_route(route):
     # Find legs in route
     route_legs = []
-    start_idx = 0
+    start = 0
     for i, edge in enumerate(route):
         if edge.has_transferred:
-            route_legs.append((start_idx, i - 1))
-            start_idx = i
-    route_legs.append((start_idx, i))
+            route_legs.append((start, i - 1))
+            start = i
+    route_legs.append((start, i))
 
     all_route_services = []
     # Forward intersect and make a copy
@@ -212,8 +212,7 @@ def postprocess_permissive_route(route):
         if reference_services is None:
             reference_services = all_route_services[i]
             continue
-        all_route_services[i] = all_route_services[i].intersection(
-            reference_services)
+        all_route_services[i].intersection_update(reference_services)
         if route[i].has_transferred:
             reference_services = None
 
@@ -222,11 +221,13 @@ def postprocess_permissive_route(route):
     for start, end, in route_legs:
         try:
             next_start_services = all_route_services[next(next_legs)[0]]
+        # On final leg of route, use goal reference services
         except StopIteration:
             next_start_services = all_route_services[-1]
         for i in range(start, end + 1):
-            reference_services = all_route_services[i] | next_start_services
-            route[i].services = route[i].services.intersection(reference_services)
+            reference_services = all_route_services[i].union(
+                next_start_services)
+            route[i].services.intersection_update(reference_services)
 
 
 def dijkstra(origin_code, goal_code):

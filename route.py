@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from collections import defaultdict
 from functools import total_ordering
 import heapq
+import logging
 from math import radians, cos, sin, asin, sqrt, inf
 from pprint import pprint
 
@@ -22,7 +23,6 @@ from sqlalchemy import create_engine
 db_conn = create_engine('sqlite:///sg-bus-router.db')
 rt = pd.read_sql_table(table_name='bus_routes', con=db_conn)
 bs = pd.read_sql_table(table_name='bus_stops', con=db_conn)
-
 bs.set_index('BusStopCode', inplace=True)
 
 TRANSFER_PENALTY = 5
@@ -245,7 +245,7 @@ def dijkstra(origin_code, goal_code):
         nodes[current_node.bus_stop_code] = current_node
         optimal_nodes.add(current_node.bus_stop_code)
 
-        print(current_node)
+        logging.info(current_node)
 
         next_service_stops = discover_next_stops(current_node)
 
@@ -263,13 +263,13 @@ def dijkstra(origin_code, goal_code):
                 nodes[next_bus_stop_code] = next_node
                 traversal_queue.append(next_node)
 
-            # print('++', next_node)
+            logging.debug(' ++{}'.format(next_node))
 
             # Create edge and relax
             edge = Edge(current_node, next_bus_stop_info['services'],
                         next_node, next_bus_stop_info['distance'])
 
-            # print(' -', edge)
+            logging.debug(' -{}'.format(edge))
 
         # Store optimal route found for bus stop (Service agnostic)
         if current_node.bus_stop_code == goal_code:
@@ -312,11 +312,23 @@ def main():
         help="origin bus stop code")
     parser.add_argument(
         '-g', '--goal', default=DEBUG_GOAL, help="destination bus stop code")
+    parser.add_argument(
+        '-v', action='count', dest='verbosity', default=0,
+        help="set verbosity level")
 
     args = parser.parse_args()
     TRANSFER_PENALTY = args.transfer_penalty
     origin = args.origin
     goal = args.goal
+
+    # Set logging level
+    if args.verbosity == 0:
+        LOG_LEVEL = logging.WARNING
+    if args.verbosity == 1:
+        LOG_LEVEL = logging.INFO
+    elif args.verbosity >= 2:
+        LOG_LEVEL = logging.DEBUG
+    logging.basicConfig(level=LOG_LEVEL, datefmt='%H:%M:%S', format='%(asctime)s %(message)s')
 
     # Fallback prompts
     if not origin:

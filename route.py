@@ -305,15 +305,16 @@ def main():
         description='Finds the shortest bus route between a source and a '
         'destination bus stop.')
     parser.add_argument(
-        '-t', '--transfer-penalty', default=TRANSFER_PENALTY,
+        '-t', '--transfer-penalty', default=TRANSFER_PENALTY, type=float,
         help="distance in km equivalent to the time & effort a transfer requires")
-    parser.add_argument('-o', '--origin', help="origin bus stop code",
-                        default=DEBUG_ORIGIN)
     parser.add_argument(
-        '-g', '--goal', help="destination bus stop code", default=DEBUG_GOAL)
+        '-o', '--origin', default=DEBUG_ORIGIN,
+        help="origin bus stop code")
+    parser.add_argument(
+        '-g', '--goal', default=DEBUG_GOAL, help="destination bus stop code")
 
     args = parser.parse_args()
-    TRANSFER_PENALTY = float(args.transfer_penalty)
+    TRANSFER_PENALTY = args.transfer_penalty
     origin = args.origin
     goal = args.goal
 

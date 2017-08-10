@@ -26,6 +26,7 @@ bs = pd.read_sql_table(table_name='bus_stops', con=db_conn)
 bs.set_index('BusStopCode', inplace=True)
 
 TRANSFER_PENALTY = 5
+EARTH_RADIUS = 6378.125
 
 @total_ordering
 class Node:
@@ -53,9 +54,9 @@ class Node:
         # haversine formula
         dlon = lon2 - lon1
         dlat = lat2 - lat1
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
         c = 2 * asin(sqrt(a))
-        km = 6367 * c
+        km = EARTH_RADIUS * c
         return km
 
     def calculate_heuristic(self):

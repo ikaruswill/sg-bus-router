@@ -29,7 +29,7 @@ TRANSFER_PENALTY = 5
 
 @total_ordering
 class Node:
-    goal_stop = None
+    goal_stops = []
     heuristics = {}
 
     def __init__(self, bus_stop_code, best_cost=inf, best_dist=inf, last_transfer_index=-1):
@@ -62,9 +62,10 @@ class Node:
         if self.bus_stop_code in Node.heuristics:
             return Node.heuristics[self.bus_stop_code]
         else:
-            heuristic = self.haversine(
+            heuristic = min([self.haversine(
                 self.bus_stop.Longitude, self.bus_stop.Latitude,
-                self.goal_stop.Longitude, self.goal_stop.Latitude)
+                goal_stop.Longitude,
+                goal_stop.Latitude) for goal_stop in Node.goal_stops])
             Node.heuristics[self.bus_stop_code] = heuristic
         return heuristic
 
@@ -227,13 +228,14 @@ def postprocess_permissive_route(route):
             route[i].services &= reference_services
 
 
-def dijkstra(origin_codes, goal_code):
+def dijkstra(origin_codes, goal_codes):
     traversal_queue = []
     nodes = {}
     optimal_nodes = set()
 
     # Initialize goal stop
-    Node.goal_stop = bs.loc[str(goal_code)]
+    for goal_code in goal_codes:
+        Node.goal_stops.append(bs.loc[str(goal_code)])
 
     # Initialize origin node
     for origin_code in origin_codes:
@@ -299,7 +301,8 @@ def main():
     # Skipped stops     : 59119 -> 63091
 
     DEBUG_ORIGINS = ['59119', '59139']
-    DEBUG_GOAL = '54589'
+    # DEBUG_GOALS = ['54589', '54261', '54581', '54411']
+    DEBUG_GOALS = ['54589', '54261']
 
     # Argument handling
     parser = ArgumentParser(
@@ -312,21 +315,21 @@ def main():
         '-o', '--origins', default=DEBUG_ORIGINS, nargs='*',
         help="origin bus stop codes")
     parser.add_argument(
-        '-g', '--goal', default=DEBUG_GOAL, help="destination bus stop code")
+        '-g', '--goals', default=DEBUG_GOALS, help="destination bus stop code")
 
     args = parser.parse_args()
     TRANSFER_PENALTY = args.transfer_penalty
     origins = args.origins
-    goal = args.goal
+    goals = args.goals
 
     # Fallback prompts
     if not origins:
         origins = input('Source bus stop codes: ').split()
-    if not goal:
-        goal = input('Destination bus-stop codes: ').split()
+    if not goals:
+        goals = input('Destination bus-stop codes: ').split()
 
     # Run algorithm
-    solution = dijkstra(origins, goal)
+    solution = dijkstra(origins, goals)
     print('Solution')
     pprint(solution.best_route)
 

@@ -227,7 +227,7 @@ def postprocess_permissive_route(route):
             route[i].services &= reference_services
 
 
-def dijkstra(origin_code, goal_code):
+def dijkstra(origin_codes, goal_code):
     traversal_queue = []
     nodes = {}
     optimal_nodes = set()
@@ -236,8 +236,9 @@ def dijkstra(origin_code, goal_code):
     Node.goal_stop = bs.loc[str(goal_code)]
 
     # Initialize origin node
-    origin = Node(origin_code, 0, 0, 0)
-    traversal_queue.append(origin)
+    for origin_code in origin_codes:
+        origin = Node(origin_code, 0, 0, 0)
+        traversal_queue.append(origin)
 
     # Dijkstra iterations
     while traversal_queue:
@@ -297,8 +298,8 @@ def main():
     # Tim               : 18129 -> 10199
     # Skipped stops     : 59119 -> 63091
 
-    DEBUG_ORIGIN = '59119'
-    DEBUG_GOAL = '63091'
+    DEBUG_ORIGINS = ['59119', '59139']
+    DEBUG_GOAL = '54589'
 
     # Argument handling
     parser = ArgumentParser(
@@ -308,24 +309,24 @@ def main():
         '-t', '--transfer-penalty', default=TRANSFER_PENALTY, type=float,
         help="distance in km equivalent to the time & effort a transfer requires")
     parser.add_argument(
-        '-o', '--origin', default=DEBUG_ORIGIN,
-        help="origin bus stop code")
+        '-o', '--origins', default=DEBUG_ORIGINS, nargs='*',
+        help="origin bus stop codes")
     parser.add_argument(
         '-g', '--goal', default=DEBUG_GOAL, help="destination bus stop code")
 
     args = parser.parse_args()
     TRANSFER_PENALTY = args.transfer_penalty
-    origin = args.origin
+    origins = args.origins
     goal = args.goal
 
     # Fallback prompts
-    if not origin:
-        origin = input('Source bus stop code: ')
+    if not origins:
+        origins = input('Source bus stop codes: ').split()
     if not goal:
-        goal = input('Destination bus-stop codes: ')
+        goal = input('Destination bus-stop codes: ').split()
 
     # Run algorithm
-    solution = dijkstra(origin, goal)
+    solution = dijkstra(origins, goal)
     print('Solution')
     pprint(solution.best_route)
 

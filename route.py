@@ -59,6 +59,13 @@ class Node:
         km = EARTH_RADIUS * c
         return km
 
+    def equirectangular(self, lon1, lat1, lon2, lat2):
+        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+        x = (lon2 - lon1) * cos(0.5 * (lat2 + lat1))
+        y = lat2 - lat1
+        d = EARTH_RADIUS * sqrt(x * x + y * y)
+        return d
+
     def calculate_heuristic(self):
         if self.bus_stop_code in Node.heuristics:
             return Node.heuristics[self.bus_stop_code]

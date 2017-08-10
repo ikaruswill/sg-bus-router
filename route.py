@@ -299,7 +299,7 @@ def main():
     # Skipped stops     : 59119 -> 63091
 
     DEBUG_ORIGINS = ['59119', '59139']
-    DEBUG_GOAL = '54589'
+    DEBUG_GOAL = ['54589', '54261']
 
     # Argument handling
     parser = ArgumentParser(
@@ -312,23 +312,31 @@ def main():
         '-o', '--origins', default=DEBUG_ORIGINS, nargs='*',
         help="origin bus stop codes")
     parser.add_argument(
-        '-g', '--goal', default=DEBUG_GOAL, help="destination bus stop code")
+        '-g', '--goals', default=DEBUG_GOAL, help="destination bus stop code")
 
     args = parser.parse_args()
     TRANSFER_PENALTY = args.transfer_penalty
     origins = args.origins
-    goal = args.goal
+    goals = args.goals
 
     # Fallback prompts
     if not origins:
         origins = input('Source bus stop codes: ').split()
-    if not goal:
-        goal = input('Destination bus-stop codes: ').split()
+    if not goals:
+        goals = input('Destination bus-stop codes: ').split()
 
     # Run algorithm
-    solution = dijkstra(origins, goal)
+    solutions = []
+    for goal in goals:
+        solutions.append(dijkstra(origins, goal))
+
+    best_solution = solutions[0]
+    for solution in solutions:
+        if solution.best_metric < best_solution.best_metric:
+            best_solution = solution
+
     print('Solution')
-    pprint(solution.best_route)
+    pprint(best_solution.best_route)
 
 if __name__ == '__main__':
     main()

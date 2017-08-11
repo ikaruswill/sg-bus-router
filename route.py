@@ -64,8 +64,8 @@ class Node:
         else:
             heuristic = min([self.haversine(
                 self.bus_stop['Longitude'], self.bus_stop['Latitude'],
-                self.goal_stop['Longitude'],
-                self.goal_stop['Latitude']) for goal_stop in goal_stops])
+                goal_stop['Longitude'],
+                goal_stop['Latitude']) for goal_stop in self.goal_stops])
             Node.heuristics[self.bus_stop_code] = heuristic
         return heuristic
 

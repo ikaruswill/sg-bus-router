@@ -312,10 +312,11 @@ def main():
         '-t', '--transfer-penalty', default=TRANSFER_PENALTY, type=float,
         help="distance in km equivalent to the time & effort a transfer requires")
     parser.add_argument(
-        '-o', '--origins', default=DEBUG_ORIGINS, nargs='*',
+        '-o', '--origins', default=DEBUG_ORIGINS, nargs='+',
         help="origin bus stop codes")
     parser.add_argument(
-        '-g', '--goals', default=DEBUG_GOALS, help="destination bus stop code")
+        '-g', '--goals', default=DEBUG_GOALS, nargs='+',
+        help="destination bus stop code")
     parser.add_argument(
         '-v', action='count', dest='verbosity', default=0,
         help="set verbosity level")

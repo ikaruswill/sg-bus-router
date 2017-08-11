@@ -2,30 +2,23 @@ from argparse import ArgumentParser
 from collections import defaultdict
 from functools import total_ordering
 import heapq
+import logging
 from math import radians, cos, sin, asin, sqrt, inf
+import pickle
 from pprint import pprint
 
-import pandas as pd
-from sqlalchemy import create_engine
-
 # Features
-# STASHED: Use Python logging module
 # TODO: Allow multiple destination nodes
-# TODO: Allow multiple source nodes
-# TODO: Allow for multiple route suggestions without re-running algorithm
 # TODO: Add custom exceptions instead of exit()
 
-# Optimizations
-# TODO: Save bus-stops table with BusStopCode as index to remove set_index() step
-# TODO: Create new table from bus-routes grouped by BusStopCode to speed up node discovery
-
-db_conn = create_engine('sqlite:///sg-bus-router.db')
-rt = pd.read_sql_table(table_name='bus_routes', con=db_conn)
-bs = pd.read_sql_table(table_name='bus_stops', con=db_conn)
-
-bs.set_index('BusStopCode', inplace=True)
-
 TRANSFER_PENALTY = 5
+EARTH_RADIUS = 6378.125
+
+# Load data
+with open('rt_idx.pkl', 'rb') as a, open('rt_bs.pkl', 'rb') as b, open('bs.pkl', 'rb') as c:
+    rt_idx = pickle.load(a)
+    rt_bs = pickle.load(b)
+    bs = pickle.load(c)
 
 @total_ordering
 class Node:
@@ -34,14 +27,14 @@ class Node:
 
     def __init__(self, bus_stop_code, best_cost=inf, best_dist=inf, last_transfer_index=-1):
         self.bus_stop_code = bus_stop_code
-        self.bus_stop = bs.loc[self.bus_stop_code]
+        self.bus_stop = bs[self.bus_stop_code]
         self.h_dist = self.calculate_heuristic()
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_metric = self.best_cost + self.h_dist
         self.best_route = []
         self.last_transfer_index = last_transfer_index
-        self.services = rt[(rt.BusStopCode == self.bus_stop_code)]
+        self.services = rt_bs[self.bus_stop_code]
 
     def haversine(self, lon1, lat1, lon2, lat2):
         """
@@ -53,18 +46,25 @@ class Node:
         # haversine formula
         dlon = lon2 - lon1
         dlat = lat2 - lat1
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
         c = 2 * asin(sqrt(a))
-        km = 6367 * c
+        km = EARTH_RADIUS * c
         return km
+
+    def equirectangular(self, lon1, lat1, lon2, lat2):
+        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+        x = (lon2 - lon1) * cos(0.5 * (lat2 + lat1))
+        y = lat2 - lat1
+        d = EARTH_RADIUS * sqrt(x * x + y * y)
+        return d
 
     def calculate_heuristic(self):
         if self.bus_stop_code in Node.heuristics:
             return Node.heuristics[self.bus_stop_code]
         else:
             heuristic = self.haversine(
-                self.bus_stop.Longitude, self.bus_stop.Latitude,
-                self.goal_stop.Longitude, self.goal_stop.Latitude)
+                self.bus_stop['Longitude'], self.bus_stop['Latitude'],
+                self.goal_stop['Longitude'], self.goal_stop['Latitude'])
             Node.heuristics[self.bus_stop_code] = heuristic
         return heuristic
 
@@ -72,7 +72,7 @@ class Node:
         return self.best_metric < other.best_metric
 
     def __hash__(self):
-        return hash('{} {}'.format(self.bus_stop_code, self.service.ServiceNo))
+        return hash('{} {}'.format(self.bus_stop_code, self.service['ServiceNo']))
 
     def __repr__(self):
         return '{}: {:>6.1f} | {:>6.1f} | {:>6.1f}km'.format(
@@ -91,7 +91,9 @@ class Edge:
         self.update_dest_distance_cost_route()
 
     def calculate_cost(self):
-        cost = self.distance + 1/self.distance
+        cost = self.distance
+        if self.distance:
+            cost += 1/self.distance
         if self.source.best_route:
             # If current edge services are disjoint with the best route,
             # a transfer has occurred
@@ -131,15 +133,16 @@ class Edge:
 def discover_next_stops(node):
     next_stops = defaultdict(lambda: defaultdict(set))
     # Discover next stop of each service
-    for idx, current_service_stop in node.services.iterrows():
+    for idx, current_service_stop in node.services.items():
         try:
-            next_service_stop = rt.loc[idx + 1]
+            next_service_stop = rt_idx[idx + 1]
         except KeyError:
             print('INFO: Reached end of dataframe')
             continue
-        if next_service_stop.StopSequence == current_service_stop.StopSequence + 1:
-            next_stops[next_service_stop.BusStopCode]['services'].add(next_service_stop.ServiceNo)
-            next_stops[next_service_stop.BusStopCode]['distance'] = next_service_stop.Distance - current_service_stop.Distance
+        if next_service_stop['StopSequence'] == current_service_stop['StopSequence'] + 1:
+            next_service_stop_code = next_service_stop['BusStopCode']
+            next_stops[next_service_stop_code]['services'].add(next_service_stop['ServiceNo'])
+            next_stops[next_service_stop_code]['distance'] = next_service_stop['Distance'] - current_service_stop['Distance']
     return next_stops
 
 def postprocess_latest_transfer(route):
@@ -233,7 +236,7 @@ def dijkstra(origin_codes, goal_code):
     optimal_nodes = set()
 
     # Initialize goal stop
-    Node.goal_stop = bs.loc[str(goal_code)]
+    Node.goal_stop = bs[str(goal_code)]
 
     # Initialize origin node
     for origin_code in origin_codes:
@@ -246,7 +249,7 @@ def dijkstra(origin_codes, goal_code):
         nodes[current_node.bus_stop_code] = current_node
         optimal_nodes.add(current_node.bus_stop_code)
 
-        print(current_node)
+        logging.info(current_node)
 
         next_service_stops = discover_next_stops(current_node)
 
@@ -264,13 +267,13 @@ def dijkstra(origin_codes, goal_code):
                 nodes[next_bus_stop_code] = next_node
                 traversal_queue.append(next_node)
 
-            # print('++', next_node)
+            logging.debug(' ++{}'.format(next_node))
 
             # Create edge and relax
             edge = Edge(current_node, next_bus_stop_info['services'],
                         next_node, next_bus_stop_info['distance'])
 
-            # print(' -', edge)
+            logging.debug(' -{}'.format(edge))
 
         # Store optimal route found for bus stop (Service agnostic)
         if current_node.bus_stop_code == goal_code:
@@ -297,9 +300,9 @@ def main():
     # LS                : 19051 -> 03381
     # Tim               : 18129 -> 10199
     # Skipped stops     : 59119 -> 63091
-
+    # Optimality        : 07319 -> 57111 : 66,67 -> 980
     DEBUG_ORIGINS = ['59119', '59139']
-    DEBUG_GOAL = ['54589', '54261']
+    DEBUG_GOALS = ['54589', '54261']
 
     # Argument handling
     parser = ArgumentParser(
@@ -312,12 +315,24 @@ def main():
         '-o', '--origins', default=DEBUG_ORIGINS, nargs='*',
         help="origin bus stop codes")
     parser.add_argument(
-        '-g', '--goals', default=DEBUG_GOAL, help="destination bus stop code")
+        '-g', '--goals', default=DEBUG_GOALS, help="destination bus stop code")
+    parser.add_argument(
+        '-v', action='count', dest='verbosity', default=0,
+        help="set verbosity level")
 
     args = parser.parse_args()
     TRANSFER_PENALTY = args.transfer_penalty
     origins = args.origins
     goals = args.goals
+
+    # Set logging level
+    if args.verbosity == 0:
+        LOG_LEVEL = logging.WARNING
+    if args.verbosity == 1:
+        LOG_LEVEL = logging.INFO
+    elif args.verbosity >= 2:
+        LOG_LEVEL = logging.DEBUG
+    logging.basicConfig(level=LOG_LEVEL, datefmt='%H:%M:%S', format='%(asctime)s %(message)s')
 
     # Fallback prompts
     if not origins:

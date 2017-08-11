@@ -8,10 +8,7 @@ import pickle
 from pprint import pprint
 
 # Features
-# STASHED: Use Python logging module
 # TODO: Allow multiple destination nodes
-# TODO: Allow multiple source nodes
-# TODO: Allow for multiple route suggestions without re-running algorithm
 # TODO: Add custom exceptions instead of exit()
 
 TRANSFER_PENALTY = 5

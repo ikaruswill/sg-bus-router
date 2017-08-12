@@ -8,6 +8,7 @@ import pickle
 from pprint import pprint
 
 # Features
+# TODO: Allow routing by GPS coordinates of origin and destination
 # TODO: Allow multiple destination nodes
 # TODO: Add custom exceptions instead of exit()
 
@@ -290,6 +291,9 @@ def dijkstra(origin_codes, goal_code):
     postprocess_permissive_route(current_node.best_route)
     return current_node
 
+def find_nearby_stops(lat, lon, radius):
+    pass
+
 def main():
     global TRANSFER_PENALTY
 
@@ -301,24 +305,36 @@ def main():
     # Tim               : 18129 -> 10199
     # Skipped stops     : 59119 -> 63091
     # Optimality        : 07319 -> 57111 : 66,67 -> 980
-    DEBUG_ORIGINS = ['07319']
-    DEBUG_GOAL = '57111'
+    DEBUG_ORIGINS = ['19051']
+    DEBUG_GOAL = '03381'
+
+    DEBUG_SOURCE = [1.309082, 103.773727]
+    DEBUG_DEST = [1.281680, 103.853005]
 
     # Argument handling
     parser = ArgumentParser(
         description='Finds the shortest bus route between a source and a '
         'destination bus stop.')
     parser.add_argument(
+        '-v', action='count', dest='verbosity', default=0,
+        help="set verbosity level")
+    parser.add_argument(
         '-t', '--transfer-penalty', default=TRANSFER_PENALTY, type=float,
         help="distance in km equivalent to the time & effort a transfer requires")
     parser.add_argument(
-        '-o', '--origins', default=DEBUG_ORIGINS, nargs='*',
+        '-o', '--origins', default=DEBUG_ORIGINS, nargs='+', metavar='ORIGIN',
         help="origin bus stop codes")
     parser.add_argument(
         '-g', '--goal', default=DEBUG_GOAL, help="destination bus stop code")
     parser.add_argument(
-        '-v', action='count', dest='verbosity', default=0,
-        help="set verbosity level")
+        '-s', '--source', default=DEBUG_SOURCE, type=float, nargs=2,
+        metavar=('LAT', 'LON'),
+        help="source lattitude and longitude")
+    parser.add_argument(
+        '-d', '--dest', default=DEBUG_DEST, type=float, nargs=2,
+        metavar=('LAT', 'LON'),
+        help="destination lattitude and longitude")
+
 
     args = parser.parse_args()
     TRANSFER_PENALTY = args.transfer_penalty

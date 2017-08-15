@@ -315,7 +315,7 @@ def main():
         '-t', '--transfer-penalty', default=TRANSFER_PENALTY, type=float,
         help="distance in km equivalent to the time & effort a transfer requires")
     subparsers = parser.add_subparsers(help='mode', dest='command')
-    # subparsers.required = True
+    subparsers.required = True
 
     coordparser = subparsers.add_parser(
         'coords', help='find the shortest bus route between GPS coordinates')

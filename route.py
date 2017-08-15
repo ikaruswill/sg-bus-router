@@ -299,8 +299,8 @@ def main():
     # Tim               : 18129 -> 10199
     # Skipped stops     : 59119 -> 63091
     # Optimality        : 07319 -> 57111 : 66,67 -> 980
-    DEBUG_ORIGIN_STOPS = ['18129']
-    DEBUG_GOAL_STOP = '10199'
+    DEBUG_ORIGIN_STOPS = ['19051']
+    DEBUG_GOAL_STOP = '03381'
 
     DEBUG_ORIGIN_COORDS = [1.309082, 103.773727]
     DEBUG_GOAL_COORDS = [1.281680, 103.853005]
@@ -360,7 +360,10 @@ def main():
         goal_codes = find_nearby_stops(goal_lat, goal_lon, 'DistanceToGoal')
         goal_codes = set(goal_codes)
     elif args.command == 'codes':
-        pass
+        origin_codes = origin
+        precalculate_distances(
+            bs[goal]['Latitude'], bs[goal]['Longitude'], dest_key='DistanceToGoal')
+        goal_codes = set([goal])
 
     # Run algorithm
     solution = dijkstra(origin_codes, goal_codes)

@@ -295,6 +295,7 @@ def dijkstra(origin_codes, goal_codes):
 
 def main():
     global TRANSFER_PENALTY
+    global NEARBY_STOPS_RADIUS
 
     # No transfers      : 19051 -> 18111
     # Single transfer   : 19051 -> 18129
@@ -319,7 +320,7 @@ def main():
     parser.add_argument(
         '-t', '--transfer-penalty', default=TRANSFER_PENALTY, type=float,
         help="distance in km equivalent to the time & effort a transfer requires")
-    subparsers = parser.add_subparsers(help='mode', dest='command')
+    subparsers = parser.add_subparsers(help='mode', dest='mode')
     subparsers.required = True
 
     # Route with GPS Coordinates
@@ -333,6 +334,9 @@ def main():
         '-g', '--goal', default=DEBUG_GOAL_COORDS, type=float, nargs=2,
         metavar=('LAT', 'LON'),
         help="goal lattitude and longitude")
+    coordparser.add_argument(
+        '-r', '--radius', default=NEARBY_STOPS_RADIUS, type=float,
+        help='radius from both origin and goal to search for admissible bus stops')
 
     # Route with Bus Stop Codes
     codeparser = subparsers.add_parser(
@@ -358,7 +362,8 @@ def main():
     origin = args.origin
     goal = args.goal
 
-    if args.command == 'coords':
+    if args.mode == 'coords':
+        NEARBY_STOPS_RADIUS = args.radius
         origin_lat, origin_lon = origin
         goal_lat, goal_lon = goal
         precalculate_distances(origin_lat, origin_lon, dest_key=FROM_ORIGIN_KEY)
@@ -366,7 +371,7 @@ def main():
         origin_codes = find_nearby_stops(origin_lat, origin_lon, FROM_ORIGIN_KEY)
         goal_codes = find_nearby_stops(goal_lat, goal_lon, TO_GOAL_KEY)
         goal_codes = set(goal_codes)
-    elif args.command == 'codes':
+    elif args.mode == 'codes':
         origin_codes = origin
         precalculate_distances(
             bs[goal]['Latitude'], bs[goal]['Longitude'], dest_key=TO_GOAL_KEY)

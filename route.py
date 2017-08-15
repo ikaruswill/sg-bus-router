@@ -11,9 +11,14 @@ from pprint import pprint
 # TODO: Allow multiple destination nodes
 # TODO: Add custom exceptions instead of exit()
 
+# Parameters
 TRANSFER_PENALTY = 5
 EARTH_RADIUS = 6378.125
 NEARBY_STOPS_RADIUS = 0.3
+
+# Constants
+FROM_ORIGIN_KEY = 'DistanceFromOrigin'
+TO_GOAL_KEY = 'DistanceToGoal'
 
 # Load data
 with open('rt_idx.pkl', 'rb') as a, open('rt_bs.pkl', 'rb') as b, open('bs.pkl', 'rb') as c:
@@ -27,7 +32,7 @@ class Node:
     def __init__(self, bus_stop_code, best_cost=inf, best_dist=inf, last_transfer_index=-1):
         self.bus_stop_code = bus_stop_code
         self.bus_stop = bs[self.bus_stop_code]
-        self.h_dist = bs[self.bus_stop_code]['DistanceToGoal']
+        self.h_dist = bs[self.bus_stop_code][TO_GOAL_KEY]
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_metric = self.best_cost + self.h_dist
@@ -237,8 +242,8 @@ def dijkstra(origin_codes, goal_codes):
     # Initialize origin nodes
     for origin_code in origin_codes:
         origin = Node(
-            origin_code, bs[origin_code].get('DistanceFromOrigin', 0),
-            bs[origin_code].get('DistanceFromOrigin', 0), 0)
+            origin_code, bs[origin_code].get(FROM_ORIGIN_KEY, 0),
+            bs[origin_code].get(FROM_ORIGIN_KEY, 0), 0)
         traversal_queue.append(origin)
 
     # Dijkstra iterations
@@ -317,6 +322,7 @@ def main():
     subparsers = parser.add_subparsers(help='mode', dest='command')
     subparsers.required = True
 
+    # Route with GPS Coordinates
     coordparser = subparsers.add_parser(
         'coords', help='find the shortest bus route between GPS coordinates')
     coordparser.add_argument(
@@ -328,6 +334,7 @@ def main():
         metavar=('LAT', 'LON'),
         help="goal lattitude and longitude")
 
+    # Route with Bus Stop Codes
     codeparser = subparsers.add_parser(
         'codes', help='find the shortest bus route between bus stop codes')
     codeparser.add_argument(
@@ -354,15 +361,15 @@ def main():
     if args.command == 'coords':
         origin_lat, origin_lon = origin
         goal_lat, goal_lon = goal
-        precalculate_distances(origin_lat, origin_lon, dest_key='DistanceFromOrigin')
-        precalculate_distances(goal_lat, goal_lon, dest_key='DistanceToGoal')
-        origin_codes = find_nearby_stops(origin_lat, origin_lon, 'DistanceFromOrigin')
-        goal_codes = find_nearby_stops(goal_lat, goal_lon, 'DistanceToGoal')
+        precalculate_distances(origin_lat, origin_lon, dest_key=FROM_ORIGIN_KEY)
+        precalculate_distances(goal_lat, goal_lon, dest_key=TO_GOAL_KEY)
+        origin_codes = find_nearby_stops(origin_lat, origin_lon, FROM_ORIGIN_KEY)
+        goal_codes = find_nearby_stops(goal_lat, goal_lon, TO_GOAL_KEY)
         goal_codes = set(goal_codes)
     elif args.command == 'codes':
         origin_codes = origin
         precalculate_distances(
-            bs[goal]['Latitude'], bs[goal]['Longitude'], dest_key='DistanceToGoal')
+            bs[goal]['Latitude'], bs[goal]['Longitude'], dest_key=TO_GOAL_KEY)
         goal_codes = set([goal])
 
     # Run algorithm

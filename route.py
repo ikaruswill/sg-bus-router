@@ -229,24 +229,16 @@ def find_nearby_stops(lat, lon, dist_key):
             nearby_stops.append(bus_stop_code)
     return nearby_stops
 
-def dijkstra(origin_lat, origin_lon, goal_lat, goal_lon):
+def dijkstra(origin_codes, goal_codes):
     traversal_queue = []
     nodes = {}
     optimal_nodes = set()
 
-    # Precompute distances
-    precalculate_distances(goal_lat, goal_lon, dest_key='DistanceToGoal')
-    precalculate_distances(origin_lat, origin_lon, dest_key='DistanceFromOrigin')
-
-    origin_codes = find_nearby_stops(origin_lat, origin_lon, 'DistanceFromOrigin')
-    goal_codes = find_nearby_stops(goal_lat, goal_lon, 'DistanceToGoal')
-    goal_codes = set(goal_codes)
-
     # Initialize origin nodes
     for origin_code in origin_codes:
         origin = Node(
-            origin_code, bs[origin_code]['DistanceFromOrigin'],
-            bs[origin_code]['DistanceFromOrigin'], 0)
+            origin_code, bs[origin_code].get('DistanceFromOrigin', 0),
+            bs[origin_code].get('DistanceFromOrigin', 0), 0)
         traversal_queue.append(origin)
 
     # Dijkstra iterations
@@ -307,43 +299,44 @@ def main():
     # Tim               : 18129 -> 10199
     # Skipped stops     : 59119 -> 63091
     # Optimality        : 07319 -> 57111 : 66,67 -> 980
-    DEBUG_ORIGINS = ['18129']
-    DEBUG_GOAL = '10199'
+    DEBUG_ORIGIN_STOPS = ['18129']
+    DEBUG_GOAL_STOP = '10199'
 
-    DEBUG_SOURCE = [1.309082, 103.773727]
-    DEBUG_DEST = [1.281680, 103.853005]
+    DEBUG_ORIGIN_COORDS = [1.309082, 103.773727]
+    DEBUG_GOAL_COORDS = [1.281680, 103.853005]
 
     # Argument handling
     parser = ArgumentParser(
-        description='Finds the shortest bus route between a source and a '
-        'destination bus stop.')
+        description='Finds the shortest bus route')
     parser.add_argument(
         '-v', action='count', dest='verbosity', default=0,
         help="set verbosity level")
     parser.add_argument(
         '-t', '--transfer-penalty', default=TRANSFER_PENALTY, type=float,
         help="distance in km equivalent to the time & effort a transfer requires")
-    parser.add_argument(
-        '-o', '--origins', default=DEBUG_ORIGINS, nargs='+', metavar='ORIGIN',
-        help="origin bus stop codes")
-    parser.add_argument(
-        '-g', '--goal', default=DEBUG_GOAL, help="destination bus stop code")
-    parser.add_argument(
-        '-s', '--source', default=DEBUG_SOURCE, type=float, nargs=2,
-        metavar=('LAT', 'LON'),
-        help="source lattitude and longitude")
-    parser.add_argument(
-        '-d', '--dest', default=DEBUG_DEST, type=float, nargs=2,
-        metavar=('LAT', 'LON'),
-        help="destination lattitude and longitude")
+    subparsers = parser.add_subparsers(help='mode', dest='command')
+    # subparsers.required = True
 
+    coordparser = subparsers.add_parser(
+        'coords', help='find the shortest bus route between GPS coordinates')
+    coordparser.add_argument(
+        '-o', '--origin', default=DEBUG_ORIGIN_COORDS, type=float, nargs=2,
+        metavar=('LAT', 'LON'),
+        help="origin lattitude and longitude")
+    coordparser.add_argument(
+        '-g', '--goal', default=DEBUG_GOAL_COORDS, type=float, nargs=2,
+        metavar=('LAT', 'LON'),
+        help="goal lattitude and longitude")
+
+    codeparser = subparsers.add_parser(
+        'codes', help='find the shortest bus route between bus stop codes')
+    codeparser.add_argument(
+        '-o', '--origin', default=DEBUG_ORIGIN_STOPS, nargs='+', metavar='ORIGIN',
+        help="origin bus stop codes")
+    codeparser.add_argument(
+        '-g', '--goal', default=DEBUG_GOAL_STOP, help="destination bus stop code")
 
     args = parser.parse_args()
-    TRANSFER_PENALTY = args.transfer_penalty
-    origins = args.origins
-    goal = args.goal
-    source = args.source
-    dest = args.dest
 
     # Set logging level
     if args.verbosity == 0:
@@ -354,14 +347,23 @@ def main():
         LOG_LEVEL = logging.DEBUG
     logging.basicConfig(level=LOG_LEVEL, datefmt='%H:%M:%S', format='%(asctime)s %(message)s')
 
-    # Fallback prompts
-    if not origins:
-        origins = input('Source bus stop codes: ').split()
-    if not goal:
-        goal = input('Destination bus-stop codes: ').split()
+    TRANSFER_PENALTY = args.transfer_penalty
+    origin = args.origin
+    goal = args.goal
+
+    if args.command == 'coords':
+        origin_lat, origin_lon = origin
+        goal_lat, goal_lon = goal
+        precalculate_distances(origin_lat, origin_lon, dest_key='DistanceFromOrigin')
+        precalculate_distances(goal_lat, goal_lon, dest_key='DistanceToGoal')
+        origin_codes = find_nearby_stops(origin_lat, origin_lon, 'DistanceFromOrigin')
+        goal_codes = find_nearby_stops(goal_lat, goal_lon, 'DistanceToGoal')
+        goal_codes = set(goal_codes)
+    elif args.command == 'codes':
+        pass
 
     # Run algorithm
-    solution = dijkstra(source[0], source[1], dest[0], dest[1])
+    solution = dijkstra(origin_codes, goal_codes)
     print('Solution')
     pprint(solution.best_route)
 

@@ -8,12 +8,12 @@ import pickle
 from pprint import pprint
 
 # Features
-# TODO: Allow routing by GPS coordinates of origin and destination
 # TODO: Allow multiple destination nodes
 # TODO: Add custom exceptions instead of exit()
 
 TRANSFER_PENALTY = 5
 EARTH_RADIUS = 6378.125
+NEARBY_STOPS_RADIUS = 0.3
 
 # Load data
 with open('rt_idx.pkl', 'rb') as a, open('rt_bs.pkl', 'rb') as b, open('bs.pkl', 'rb') as c:
@@ -23,13 +23,11 @@ with open('rt_idx.pkl', 'rb') as a, open('rt_bs.pkl', 'rb') as b, open('bs.pkl',
 
 @total_ordering
 class Node:
-    goal_stop = None
-    heuristics = {}
 
     def __init__(self, bus_stop_code, best_cost=inf, best_dist=inf, last_transfer_index=-1):
         self.bus_stop_code = bus_stop_code
         self.bus_stop = bs[self.bus_stop_code]
-        self.h_dist = self.calculate_heuristic()
+        self.h_dist = bs[self.bus_stop_code]['DistanceToGoal']
         self.best_dist = best_dist
         self.best_cost = best_cost
         self.best_metric = self.best_cost + self.h_dist
@@ -37,37 +35,12 @@ class Node:
         self.last_transfer_index = last_transfer_index
         self.services = rt_bs[self.bus_stop_code]
 
-    def haversine(self, lon1, lat1, lon2, lat2):
-        """
-        Calculate the great circle distance between two points
-        on the earth (specified in decimal degrees)
-        """
-        # convert decimal degrees to radians
-        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-        # haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-        a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
-        c = 2 * asin(sqrt(a))
-        km = EARTH_RADIUS * c
-        return km
-
     def equirectangular(self, lon1, lat1, lon2, lat2):
         lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
         x = (lon2 - lon1) * cos(0.5 * (lat2 + lat1))
         y = lat2 - lat1
         d = EARTH_RADIUS * sqrt(x * x + y * y)
         return d
-
-    def calculate_heuristic(self):
-        if self.bus_stop_code in Node.heuristics:
-            return Node.heuristics[self.bus_stop_code]
-        else:
-            heuristic = self.haversine(
-                self.bus_stop['Longitude'], self.bus_stop['Latitude'],
-                self.goal_stop['Longitude'], self.goal_stop['Latitude'])
-            Node.heuristics[self.bus_stop_code] = heuristic
-        return heuristic
 
     def __lt__(self, other):
         return self.best_metric < other.best_metric
@@ -130,6 +103,25 @@ class Edge:
             self.source.bus_stop_code, self.dest.bus_stop_code, self.cost,
             self.distance, self.services)
 
+def haversine(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
+    c = 2 * asin(sqrt(a))
+    km = EARTH_RADIUS * c
+    return km
+
+def precalculate_distances(lat, lon, dest_key):
+    for bus_stop_code, bus_stop_data in bs.items():
+        stop_lon, stop_lat = bus_stop_data['Longitude'], bus_stop_data['Latitude']
+        bs[bus_stop_code][dest_key] = haversine(lat, lon, stop_lat, stop_lon)
 
 def discover_next_stops(node):
     next_stops = defaultdict(lambda: defaultdict(set))
@@ -230,18 +222,31 @@ def postprocess_permissive_route(route):
             reference_services = all_route_services[i] | next_start_services
             route[i].services &= reference_services
 
+def find_nearby_stops(lat, lon, dist_key):
+    nearby_stops = []
+    for bus_stop_code, bus_stop_data in bs.items():
+        if bus_stop_data[dist_key] <= NEARBY_STOPS_RADIUS:
+            nearby_stops.append(bus_stop_code)
+    return nearby_stops
 
-def dijkstra(origin_codes, goal_code):
+def dijkstra(origin_lat, origin_lon, goal_lat, goal_lon):
     traversal_queue = []
     nodes = {}
     optimal_nodes = set()
 
-    # Initialize goal stop
-    Node.goal_stop = bs[str(goal_code)]
+    # Precompute distances
+    precalculate_distances(goal_lat, goal_lon, dest_key='DistanceToGoal')
+    precalculate_distances(origin_lat, origin_lon, dest_key='DistanceFromOrigin')
 
-    # Initialize origin node
+    origin_codes = find_nearby_stops(origin_lat, origin_lon, 'DistanceFromOrigin')
+    goal_codes = find_nearby_stops(goal_lat, goal_lon, 'DistanceToGoal')
+    goal_codes = set(goal_codes)
+
+    # Initialize origin nodes
     for origin_code in origin_codes:
-        origin = Node(origin_code, 0, 0, 0)
+        origin = Node(
+            origin_code, bs[origin_code]['DistanceFromOrigin'],
+            bs[origin_code]['DistanceFromOrigin'], 0)
         traversal_queue.append(origin)
 
     # Dijkstra iterations
@@ -277,7 +282,7 @@ def dijkstra(origin_codes, goal_code):
             logging.debug(' -{}'.format(edge))
 
         # Store optimal route found for bus stop (Service agnostic)
-        if current_node.bus_stop_code == goal_code:
+        if current_node.bus_stop_code in goal_codes:
             break
 
         # TODO: Could do with a little optimization, currently O(hn)
@@ -291,9 +296,6 @@ def dijkstra(origin_codes, goal_code):
     postprocess_permissive_route(current_node.best_route)
     return current_node
 
-def find_nearby_stops(lat, lon, radius):
-    pass
-
 def main():
     global TRANSFER_PENALTY
 
@@ -305,8 +307,8 @@ def main():
     # Tim               : 18129 -> 10199
     # Skipped stops     : 59119 -> 63091
     # Optimality        : 07319 -> 57111 : 66,67 -> 980
-    DEBUG_ORIGINS = ['19051']
-    DEBUG_GOAL = '03381'
+    DEBUG_ORIGINS = ['18129']
+    DEBUG_GOAL = '10199'
 
     DEBUG_SOURCE = [1.309082, 103.773727]
     DEBUG_DEST = [1.281680, 103.853005]
@@ -340,6 +342,8 @@ def main():
     TRANSFER_PENALTY = args.transfer_penalty
     origins = args.origins
     goal = args.goal
+    source = args.source
+    dest = args.dest
 
     # Set logging level
     if args.verbosity == 0:
@@ -357,7 +361,7 @@ def main():
         goal = input('Destination bus-stop codes: ').split()
 
     # Run algorithm
-    solution = dijkstra(origins, goal)
+    solution = dijkstra(source[0], source[1], dest[0], dest[1])
     print('Solution')
     pprint(solution.best_route)
 

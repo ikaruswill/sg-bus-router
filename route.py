@@ -76,16 +76,15 @@ class Edge:
         if self.source.best_route:
             # If current edge services are disjoint with the best route,
             # a transfer has occurred
-            if not self.services.intersection(
-                self.source.best_route[self.source.last_transfer_index].services):
+            if not self.services & \
+                self.source.best_route[self.source.last_transfer_index].services:
                 # Distance in km equivalent to the time & effort a transfer requires
                 cost += TRANSFER_PENALTY
                 self.has_transferred = True
             # If current edge services contain >1 of last transfer point services
             # but not of the latest point in the route, a transfer has occured
             # among the services found at the last transfer point
-            elif not self.services.intersection(
-                self.source.best_route[-1].services):
+            elif not self.services & self.source.best_route[-1].services:
                 cost += TRANSFER_PENALTY
                 self.has_transferred = True
 

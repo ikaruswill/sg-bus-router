@@ -221,7 +221,7 @@ def postprocess_permissive_route(route):
         if route[i].has_transferred:
             reference_services = None
 
-    # Permissive intersect
+    # Permissive forward intersect
     next_legs = iter(route_legs[1:])
     for start, end, in route_legs:
         try:
@@ -232,6 +232,18 @@ def postprocess_permissive_route(route):
         for i in range(start, end + 1):
             reference_services = all_route_services[i] | next_start_services
             route[i].services &= reference_services
+
+    # Permissive reverse intersect
+    # Removes service 'spikes' in a route that has services from the next leg
+    # in the middle of the route
+    for start, end in route_legs:
+        most_restrictive_services = route[end].services
+        for i in range(end, start - 1, -1):
+            if len(route[i].services) >= len(most_restrictive_services):
+                route[i].services &= most_restrictive_services
+            else:
+                most_restrictive_services = route[i].services
+
 
 def find_nearby_stops(lat, lon, dist_key):
     nearby_stops = []

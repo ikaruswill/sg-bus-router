@@ -217,7 +217,6 @@ def postprocess_permissive_route(route):
     for i in reversed(range(len(all_route_services))):
         if reference_services is None:
             reference_services = all_route_services[i]
-            continue
         all_route_services[i] &= reference_services
         if route[i].has_transferred:
             reference_services = None

@@ -40,12 +40,12 @@ class Node:
         self.last_transfer_index = last_transfer_index
         self.services = rt_bs[self.bus_stop_code]
 
-    def equirectangular(self, lon1, lat1, lon2, lat2):
-        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-        x = (lon2 - lon1) * cos(0.5 * (lat2 + lat1))
-        y = lat2 - lat1
-        d = EARTH_RADIUS * sqrt(x * x + y * y)
-        return d
+    # def equirectangular(self, lon1, lat1, lon2, lat2):
+    #     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    #     x = (lon2 - lon1) * cos(0.5 * (lat2 + lat1))
+    #     y = lat2 - lat1
+    #     d = EARTH_RADIUS * sqrt(x * x + y * y)
+    #     return d
 
     def __lt__(self, other):
         return self.best_metric < other.best_metric
@@ -71,8 +71,8 @@ class Edge:
 
     def calculate_cost(self):
         cost = self.distance
-        if self.distance:
-            cost += 1/self.distance
+        # if self.distance:
+        #     cost += 1/self.distance
         if self.source.best_route:
             # If current edge services are disjoint with the best route,
             # a transfer has occurred
@@ -387,6 +387,7 @@ def main():
     solution = dijkstra(origin_codes, goal_codes)
     print('Solution')
     pprint(solution.best_route)
+    print('{} | {} stops'.format(solution, len(solution.best_route)))
 
 if __name__ == '__main__':
     main()

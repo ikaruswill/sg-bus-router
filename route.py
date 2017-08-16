@@ -8,7 +8,7 @@ import pickle
 from pprint import pprint
 
 # Features
-# TODO: Allow multiple destination nodes
+# TODO: Filter out buses that are outside of current availability
 # TODO: Add custom exceptions instead of exit()
 
 # Parameters
@@ -79,6 +79,13 @@ class Edge:
             if not self.services.intersection(
                 self.source.best_route[self.source.last_transfer_index].services):
                 # Distance in km equivalent to the time & effort a transfer requires
+                cost += TRANSFER_PENALTY
+                self.has_transferred = True
+            # If current edge services contain >1 of last transfer point services
+            # but not of the latest point in the route, a transfer has occured
+            # among the services found at the last transfer point
+            elif not self.services.intersection(
+                self.source.best_route[-1].services):
                 cost += TRANSFER_PENALTY
                 self.has_transferred = True
 
@@ -308,8 +315,8 @@ def main():
     DEBUG_ORIGIN_STOPS = ['19051']
     DEBUG_GOAL_STOP = '03381'
 
-    DEBUG_ORIGIN_COORDS = [1.309082, 103.773727]
-    DEBUG_GOAL_COORDS = [1.281680, 103.853005]
+    DEBUG_ORIGIN_COORDS = [1.342332, 103.776479]
+    DEBUG_GOAL_COORDS = [1.394051, 103.900314]
 
     # Argument handling
     parser = ArgumentParser(

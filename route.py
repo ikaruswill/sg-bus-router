@@ -110,8 +110,9 @@ class Edge:
                 self.dest.last_transfer_index = self.source.last_transfer_index
 
     def __repr__(self):
-        return '< {} --> {} >: {:>4.1f} | {:>4.1f}km | {}'.format(
-            self.source.bus_stop_code, self.dest.bus_stop_code, self.cost,
+        return '< {} --> {} > {:>1s} {:>4.1f} | {:>4.1f}km | {}'.format(
+            self.source.bus_stop_code, self.dest.bus_stop_code,
+            '*' if self.has_transferred else '', self.cost,
             self.distance, self.services)
 
 def haversine(lon1, lat1, lon2, lat2):

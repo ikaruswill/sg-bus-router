@@ -63,30 +63,28 @@ class Edge:
     def __init__(self, source, services, dest, distance):
         self.source = source
         self.dest = dest
-        self.services = services
-        self.distance = distance
         self.has_transferred = False
+        self.distance = distance
+        self.services = services
+        self._services = self.get_best_route_common_services(services) # For routing algorithm
         self.cost = self.calculate_cost()
         self.update_dest_distance_cost_route()
+
+    def get_best_route_common_services(self, services):
+        if not self.source.best_route:
+            return services    
+        common_services = services & self.source.best_route[-1]._services
+        if not common_services:
+            self.has_transferred = True
+            return services
+        return common_services
 
     def calculate_cost(self):
         cost = self.distance
         # if self.distance:
         #     cost += 1/self.distance
-        if self.source.best_route:
-            # If current edge services are disjoint with the best route,
-            # a transfer has occurred
-            if not self.services & \
-                self.source.best_route[self.source.last_transfer_index].services:
-                # Distance in km equivalent to the time & effort a transfer requires
-                cost += TRANSFER_PENALTY
-                self.has_transferred = True
-            # If current edge services contain >1 of last transfer point services
-            # but not of the latest point in the route, a transfer has occured
-            # among the services found at the last transfer point
-            elif not self.services & self.source.best_route[-1].services:
-                cost += TRANSFER_PENALTY
-                self.has_transferred = True
+        if self.has_transferred:
+            cost += TRANSFER_PENALTY
 
         if cost < 0:
             print('ERROR: Negative edge cost')
@@ -326,8 +324,11 @@ def main():
     DEBUG_ORIGIN_STOPS = ['19051']
     DEBUG_GOAL_STOP = '03381'
 
-    DEBUG_ORIGIN_COORDS = [1.342332, 103.776479]
-    DEBUG_GOAL_COORDS = [1.394051, 103.900314]
+    # DEBUG_ORIGIN_COORDS = (1.297686, 103.786218)
+    # DEBUG_GOAL_COORDS = (1.384380, 103.771181)
+
+    DEBUG_ORIGIN_COORDS = (1.297686, 103.786218)
+    DEBUG_GOAL_COORDS = (1.384380, 103.771181)
 
     # Argument handling
     parser = ArgumentParser(

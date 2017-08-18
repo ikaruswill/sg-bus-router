@@ -3,9 +3,12 @@ from collections import defaultdict
 from functools import total_ordering
 import heapq
 import logging
-from math import radians, cos, sin, asin, sqrt, inf
+import math
 import pickle
 from pprint import pprint
+
+import geo
+import postprocess
 
 # Features
 # TODO: Filter out buses that are outside of current availability
@@ -13,7 +16,6 @@ from pprint import pprint
 
 # Parameters
 TRANSFER_PENALTY = 5
-EARTH_RADIUS = 6378.125
 NEARBY_STOPS_RADIUS = 0.3
 
 # Constants
@@ -21,7 +23,10 @@ FROM_ORIGIN_KEY = 'DistanceFromOrigin'
 TO_GOAL_KEY = 'DistanceToGoal'
 
 # Load data
-with open('rt_idx.pkl', 'rb') as a, open('rt_bs.pkl', 'rb') as b, open('bs.pkl', 'rb') as c:
+with open('rt_idx.pkl',
+          'rb') as a, open('rt_bs.pkl',
+                           'rb') as b, open('bs.pkl',
+                                            'rb') as c:
     rt_idx = pickle.load(a)
     rt_bs = pickle.load(b)
     bs = pickle.load(c)
@@ -29,7 +34,8 @@ with open('rt_idx.pkl', 'rb') as a, open('rt_bs.pkl', 'rb') as b, open('bs.pkl',
 @total_ordering
 class Node:
 
-    def __init__(self, bus_stop_code, best_cost=inf, best_dist=inf, last_transfer_index=-1):
+    def __init__(self, bus_stop_code, best_cost=math.inf, best_dist=math.inf,
+                 last_transfer_index=-1):
         self.bus_stop_code = bus_stop_code
         self.bus_stop = bs[self.bus_stop_code]
         self.h_dist = bs[self.bus_stop_code][TO_GOAL_KEY]
@@ -40,18 +46,12 @@ class Node:
         self.last_transfer_index = last_transfer_index
         self.services = rt_bs[self.bus_stop_code]
 
-    # def equirectangular(self, lon1, lat1, lon2, lat2):
-    #     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    #     x = (lon2 - lon1) * cos(0.5 * (lat2 + lat1))
-    #     y = lat2 - lat1
-    #     d = EARTH_RADIUS * sqrt(x * x + y * y)
-    #     return d
-
     def __lt__(self, other):
         return self.best_metric < other.best_metric
 
     def __hash__(self):
-        return hash('{} {}'.format(self.bus_stop_code, self.service['ServiceNo']))
+        return hash('{} {}'.format(self.bus_stop_code,
+                                   self.service['ServiceNo']))
 
     def __repr__(self):
         return '{}: {:>6.1f} | {:>6.1f} | {:>6.1f}km'.format(
@@ -72,7 +72,7 @@ class Edge:
 
     def get_best_route_common_services(self, services):
         if not self.source.best_route:
-            return services    
+            return services
         common_services = services & self.source.best_route[-1]._services
         if not common_services:
             self.has_transferred = True
@@ -113,25 +113,13 @@ class Edge:
             '*' if self.has_transferred else '', self.cost,
             self.distance, self.services)
 
-def haversine(lat1, lon1, lat2, lon2):
-    """
-    Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees)
-    """
-    # convert decimal degrees to radians
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    # haversine formula
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
-    c = 2 * asin(sqrt(a))
-    km = EARTH_RADIUS * c
-    return km
 
 def precalculate_distances(lat, lon, dest_key):
     for bus_stop_code, bus_stop_data in bs.items():
-        stop_lon, stop_lat = bus_stop_data['Longitude'], bus_stop_data['Latitude']
-        bs[bus_stop_code][dest_key] = haversine(lat, lon, stop_lat, stop_lon)
+        stop_lon, stop_lat = bus_stop_data[
+            'Longitude'], bus_stop_data['Latitude']
+        bs[bus_stop_code][dest_key] = geo.haversine(
+            lat, lon, stop_lat, stop_lon)
 
 def discover_next_stops(node):
     next_stops = defaultdict(lambda: defaultdict(set))
@@ -142,106 +130,15 @@ def discover_next_stops(node):
         except KeyError:
             print('INFO: Reached end of dataframe')
             continue
-        if next_service_stop['StopSequence'] == current_service_stop['StopSequence'] + 1:
+        if next_service_stop[
+            'StopSequence'] == current_service_stop['StopSequence'] + 1:
             next_service_stop_code = next_service_stop['BusStopCode']
-            next_stops[next_service_stop_code]['services'].add(next_service_stop['ServiceNo'])
-            next_stops[next_service_stop_code]['distance'] = next_service_stop['Distance'] - current_service_stop['Distance']
+            next_stops[next_service_stop_code]['services'].add(
+                next_service_stop['ServiceNo'])
+            next_stops[
+                next_service_stop_code]['distance'] = next_service_stop[
+                    'Distance'] - current_service_stop['Distance']
     return next_stops
-
-def postprocess_latest_transfer(route):
-    # Forward intersect
-    reference_services = route[0].services
-    for edge in route:
-        if edge.has_transferred:
-            reference_services = edge.services
-            continue
-        edge.services &= reference_services
-
-    # Reverse intersect
-    reference_services = route[-1].services
-    for edge in reversed(route):
-        if reference_services is None:
-            reference_services = edge.services
-            continue
-        edge.services &= reference_services
-        if edge.has_transferred:
-            reference_services = None
-
-def postprocess_earliest_transfer(route):
-    all_route_services = []
-    # Forward intersect and make a copy
-    reference_services = route[0].services
-    for edge in route:
-        if edge.has_transferred:
-            reference_services = edge.services
-            all_route_services.append(edge.services)
-        else:
-            all_route_services.append(edge.services & reference_services)
-
-    # Reverse intersect disregarding predefined transfer points
-    # NOTE: Discards alternative services if earliest transfer stop lies on
-    #       a 'narrow' point
-    reference_services = all_route_services[-1]
-    for edge, forward_intersected_services in zip(reversed(route),
-                                                  reversed(all_route_services)):
-        allowed_services = edge.services & reference_services
-        if not allowed_services:
-            reference_services = forward_intersected_services
-            allowed_services = edge.services & reference_services
-        edge.services = allowed_services
-
-def postprocess_permissive_route(route):
-    # Find legs in route
-    route_legs = []
-    start = 0
-    for i, edge in enumerate(route):
-        if edge.has_transferred:
-            route_legs.append((start, i - 1))
-            start = i
-    route_legs.append((start, i))
-
-    all_route_services = []
-    # Forward intersect and make a copy
-    reference_services = route[0].services
-    for edge in route:
-        if edge.has_transferred:
-            reference_services = edge.services
-            all_route_services.append(edge.services)
-        else:
-            all_route_services.append(edge.services & reference_services)
-
-    # Reverse intersect
-    reference_services = all_route_services[-1]
-    for i in reversed(range(len(all_route_services))):
-        if reference_services is None:
-            reference_services = all_route_services[i]
-        all_route_services[i] &= reference_services
-        if route[i].has_transferred:
-            reference_services = None
-
-    # Permissive forward intersect
-    next_legs = iter(route_legs[1:])
-    for start, end, in route_legs:
-        try:
-            next_start_services = all_route_services[next(next_legs)[0]]
-        # On final leg of route, use goal reference services
-        except StopIteration:
-            next_start_services = all_route_services[-1]
-        for i in range(start, end + 1):
-            reference_services = all_route_services[i] | next_start_services
-            route[i].services &= reference_services
-
-    # Permissive reverse intersect
-    # Removes service 'spikes' in a route that has services from the next leg
-    # in the middle of the route
-    for start, end in route_legs:
-        most_restrictive_services = route[end].services
-        for i in range(end, start - 1, -1):
-            if len(route[i].services) >= len(most_restrictive_services):
-                route[i].services &= most_restrictive_services
-            else:
-                most_restrictive_services = route[i].services
-
 
 def find_nearby_stops(lat, lon, dist_key):
     nearby_stops = []
@@ -273,7 +170,8 @@ def dijkstra(origin_codes, goal_codes):
         next_service_stops = discover_next_stops(current_node)
 
         # Create next nodes
-        for next_bus_stop_code, next_bus_stop_info in next_service_stops.items():
+        for (next_bus_stop_code,
+             next_bus_stop_info) in next_service_stops.items():
             # Already optimal, ignore
             if next_bus_stop_code in optimal_nodes:
                 continue
@@ -304,9 +202,9 @@ def dijkstra(origin_codes, goal_codes):
         heapq.heapify(traversal_queue)
 
 
-    # postprocess_latest_transfer(current_node.best_route)
-    # postprocess_earliest_transfer(current_node.best_route)
-    postprocess_permissive_route(current_node.best_route)
+    # postprocess.latest_transfer(current_node.best_route)
+    # postprocess.earliest_transfer(current_node.best_route)
+    postprocess.permissive_route(current_node.best_route)
     return current_node
 
 def main():
@@ -328,7 +226,7 @@ def main():
     # DEBUG_GOAL_COORDS = (1.384380, 103.771181)
 
     DEBUG_ORIGIN_COORDS = (1.297686, 103.786218)
-    DEBUG_GOAL_COORDS = (1.384380, 103.771181)
+    DEBUG_GOAL_COORDS = (1.394015, 103.900321)
 
     # Argument handling
     parser = ArgumentParser(
@@ -375,7 +273,8 @@ def main():
         LOG_LEVEL = logging.INFO
     elif args.verbosity >= 2:
         LOG_LEVEL = logging.DEBUG
-    logging.basicConfig(level=LOG_LEVEL, datefmt='%H:%M:%S', format='%(asctime)s %(message)s')
+    logging.basicConfig(level=LOG_LEVEL, datefmt='%H:%M:%S',
+                        format='%(asctime)s %(message)s')
 
     TRANSFER_PENALTY = args.transfer_penalty
     origin = args.origin

@@ -16,7 +16,7 @@ LOG_INTERVAL = 1000
 
 # Constants
 API_URL_FORMAT = 'http://datamall2.mytransport.sg/ltaodataservice/{}'
-API_SKIP_INTERVAL = 50
+API_SKIP_INTERVAL = 500
 API_JSON_KEY = 'value'
 
 def main():

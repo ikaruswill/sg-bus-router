@@ -37,7 +37,8 @@ def main():
             if len(data_chunk) == 0:
                 break
             df = pd.DataFrame(data_chunk)
-            df.to_sql(name=DB_TABLES[i], con=db_conn, if_exists='append')
+            df.to_sql(name=DB_TABLES[i], con=db_conn, if_exists='append',
+                      index=False)
 
             # Log progress
             params['$skip'] += len(data_chunk)

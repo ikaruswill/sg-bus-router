@@ -20,15 +20,16 @@ class NearbyStopsTestCase(unittest.TestCase):
             nearby_stops = route.find_nearby_stops(self.dist_key)
 
         for bus_stop_code, bus_stop_dict in self.bs.items():
+            # True Positive subtest: Correct bus stops included
             with self.subTest(bus_stop_code=bus_stop_code):
-                # True Positive test: Correct bus stops included
                 if bus_stop_dict[self.dist_key] <= self.test_dist:
                     self.assertIn(
                         bus_stop_code, nearby_stops,
                         msg='False negative.\nTest: <= {}  Excluded: {}'.format(
                             self.test_dist, bus_stop_dict[self.dist_key]))
-                # True Negative test: Wrong bus stops excluded
-                elif bus_stop_dict[self.dist_key] > self.test_dist:
+            # True Negative subtest: Wrong bus stops excluded
+            with self.subTest(bus_stop_code=bus_stop_code):
+                if bus_stop_dict[self.dist_key] > self.test_dist:
                     self.assertNotIn(
                         bus_stop_code, nearby_stops,
                         msg='False positive.\nTest: <= {}  Included: {}'.format(

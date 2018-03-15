@@ -140,10 +140,10 @@ def discover_next_stops(node):
                     'Distance'] - current_service_stop['Distance']
     return next_stops
 
-def find_nearby_stops(dist_key):
+def find_nearby_stops(bs_dict, dist_key, radius):
     nearby_stops = []
-    for bus_stop_code, bus_stop_data in bs.items():
-        if bus_stop_data[dist_key] <= NEARBY_STOPS_RADIUS:
+    for bus_stop_code, bus_stop_data in bs_dict.items():
+        if bus_stop_data[dist_key] <= radius:
             nearby_stops.append(bus_stop_code)
     return nearby_stops
 
@@ -286,8 +286,9 @@ def main():
         goal_lat, goal_lon = goal
         precalculate_distances(origin_lat, origin_lon, dest_key=FROM_ORIGIN_KEY)
         precalculate_distances(goal_lat, goal_lon, dest_key=TO_GOAL_KEY)
-        origin_codes = find_nearby_stops(origin_lat, origin_lon, FROM_ORIGIN_KEY)
-        goal_codes = find_nearby_stops(goal_lat, goal_lon, TO_GOAL_KEY)
+        origin_codes = find_nearby_stops(bs, FROM_ORIGIN_KEY,
+                                         NEARBY_STOPS_RADIUS)
+        goal_codes = find_nearby_stops(bs, TO_GOAL_KEY, NEARBY_STOPS_RADIUS)
         goal_codes = set(goal_codes)
     elif args.mode == 'codes':
         origin_codes = origin

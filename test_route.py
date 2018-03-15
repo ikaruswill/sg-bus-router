@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import patch
 
 import route
 
@@ -12,12 +11,11 @@ class NearbyStopsTestCase(unittest.TestCase):
         keys = ['{:05d}'.format(i) for i in range(len(distances))]
         cls.dist_key = 'Distance'
         cls.bs = {key: {cls.dist_key: dist} for key, dist in zip(keys,
-                                                                  distances)}
+                                                                 distances)}
 
     def test_within_dist(self):
-        with patch.object(route, 'bs', self.bs), patch.object(
-            route, 'NEARBY_STOPS_RADIUS', self.test_dist):
-            nearby_stops = route.find_nearby_stops(self.dist_key)
+        nearby_stops = route.find_nearby_stops(self.bs, self.dist_key,
+                                               self.test_dist)
 
         for bus_stop_code, bus_stop_dict in self.bs.items():
             # True Positive subtest: Correct bus stops included

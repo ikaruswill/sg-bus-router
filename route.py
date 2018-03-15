@@ -140,7 +140,7 @@ def discover_next_stops(node):
                     'Distance'] - current_service_stop['Distance']
     return next_stops
 
-def find_nearby_stops(lat, lon, dist_key):
+def find_nearby_stops(dist_key):
     nearby_stops = []
     for bus_stop_code, bus_stop_data in bs.items():
         if bus_stop_data[dist_key] <= NEARBY_STOPS_RADIUS:

@@ -118,7 +118,7 @@ def precalculate_distances(lat, lon, dest_key):
     for bus_stop_code, bus_stop_data in bs.items():
         stop_lon, stop_lat = bus_stop_data[
             'Longitude'], bus_stop_data['Latitude']
-        bs[bus_stop_code][dest_key] = geo.haversine(
+        bs[bus_stop_code][dest_key] = geo.distance(
             lat, lon, stop_lat, stop_lon)
 
 def discover_next_stops(node):

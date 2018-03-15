@@ -1,15 +1,16 @@
 from math import radians, cos, sin, asin, sqrt
 
-EARTH_RADIUS = 6378.125
+# Earth equatorial radius in km based on WGS-84 geoid
+EARTH_RADIUS = 6378.137
 
-def equirectangular(lon1, lat1, lon2, lat2):
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+def _equirectangular(lat1, lon1, lat2, lon2):
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
     x = (lon2 - lon1) * cos(0.5 * (lat2 + lat1))
     y = lat2 - lat1
     d = EARTH_RADIUS * sqrt(x * x + y * y)
     return d
 
-def haversine(lat1, lon1, lat2, lon2):
+def _haversine(lat1, lon1, lat2, lon2):
     """
     Calculate the great circle distance between two points
     on the earth (specified in decimal degrees)
@@ -23,3 +24,6 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2 * asin(sqrt(a))
     km = EARTH_RADIUS * c
     return km
+
+def distance(lat1, lon1, lat2, lon2):
+    return _haversine(lat1, lon1, lat2, lon2)

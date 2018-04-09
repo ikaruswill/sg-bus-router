@@ -1,6 +1,9 @@
 # sg-bus-router
 A better way to bus-surf in Singapore.
 
+Finds the shortest bus-only path between two locations defined by GPS coordinates or 5-digit bus stop codes.
+
+Uses a modified multi-origin A* algorithm with a custom cost function.
 
 
 ## Usage overview
